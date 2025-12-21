@@ -118,8 +118,8 @@ fun SettingsView(
                 onClick = settingsNav.onNavigateToManagedBy)
           }
 
-          Lists.SectionDivider()
-          Setting.Text(R.string.bug_report, onClick = settingsNav.onNavigateToBugReport)
+          // Lists.SectionDivider()
+          // Setting.Text(R.string.bug_report, onClick = settingsNav.onNavigateToBugReport)
 
           Lists.ItemDivider()
           Setting.Text(
