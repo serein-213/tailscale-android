@@ -51,3 +51,4 @@ libtailscale-sources.jar
 .DS_Store
 
 tailscale.version
+convert.sh
