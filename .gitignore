@@ -57,3 +57,4 @@ tailscale.version
 
 # local tmp folder
 .tmp/
+convert.sh
