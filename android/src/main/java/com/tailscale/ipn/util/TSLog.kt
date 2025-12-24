@@ -59,8 +59,9 @@ object TSLog {
 
   class LibtailscaleWrapper {
     public fun sendLog(tag: String?, message: String) {
-      val logTag = tag ?: ""
-      Libtailscale.sendLog((logTag + ": " + message).toByteArray(Charsets.UTF_8))
+      // Disabled to prevent privacy/telemetry collection
+      // val logTag = tag ?: ""
+      // Libtailscale.sendLog((logTag + ": " + message).toByteArray(Charsets.UTF_8))
     }
   }
 }

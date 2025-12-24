@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Generic Strings -->
+    <string name="log_in">登录</string>
+    <string name="log_out">退出登录</string>
+    <string name="none">无</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开连接</string>
+    <string name="unknown_user">未知用户</string>
+    <string name="connected">已连接</string>
+    <string name="using_exit_node">正在使用出口节点 (%s)</string>
+    <string name="not_connected">未连接</string>
+    <string name="selected">已选择</string>
+    <string name="offline">离线</string>
+    <string name="ok">确定</string>
+    <string name="_continue">继续</string>
+    <string name="warning">警告</string>
+    <string name="search">搜索</string>
+    <string name="search_ellipsis">搜索...</string>
+    <string name="dismiss">关闭</string>
+    <string name="no_results">无结果</string>
+    <string name="back">返回</string>
+    <string name="clear_search">清除搜索</string>
+    <string name="off">关闭</string>
+    <string name="on">开启</string>
+    <string name="try_again">重试</string>
+    <string name="cancel">取消</string>
+
+    <!-- Strings for the about screen -->
+    <string name="version">版本</string>
+    <string name="about_view_header">关于 Tailscale</string>
+    <string name="about_view_title">Tailscale Android 版</string>
+    <string name="acknowledgements">致谢</string>
+    <string name="privacy_policy">隐私政策</string>
+    <string name="terms_of_service">服务条款</string>
+    <string name="about_view_footnotes">WireGuard 是 Jason A. Donenfeld 的注册商标。\n\n© 2024 Tailscale Inc. 保留所有权利。\nTailscale 是 Tailscale Inc. 的注册商标。</string>
+    <string name="managed_by">管理方</string>
+
+    <!-- Strings for the bug reporting screen -->
+    <string name="bug_report_title">报告错误</string>
+    <string name="bug_report_instructions_prefix">要报告错误，请</string>
+    <string name="bug_report_instructions_linktext">联系我们的支持团队</string>
+    <string name="bug_report_instructions_suffix">并包含以下标识符。</string>
+    <string name="bug_report_id_desc">此 ID 有助于我们在诊断日志中查找事件。此过程不会共享您的任何个人身份信息。</string>
+
+    <!-- Strings for the settings screen -->
+    <string name="settings_title">设置</string>
+    <string name="settings_admin_prefix">"管理您的 tailnet 设置，请前往 "</string>
+    <string name="settings_admin_link">管理控制台</string>
+    <string name="about_tailscale">关于 Tailscale</string>
+    <string name="bug_report">错误报告</string>
+    <string name="use_ts_dns">使用 Tailscale DNS</string>
+    <string name="internal_debug_options">内部调试选项</string>
+
+    <!-- Strings for the main screen -->
+    <string name="exit_node">出口节点</string>
+    <string name="exit_node_offline">出口节点离线</string>
+    <string name="running_exit_node">在此设备上运行</string>
+    <string name="exit_node_offline_mdm_orgname">%1$s 选择的出口节点当前离线。互联网流量被阻止。请联系网络管理员寻求帮助。</string>
+    <string name="exit_node_offline_mdm">您的组织选择的出口节点当前离线。互联网流量被阻止。请联系网络管理员寻求帮助。</string>
+    <string name="starting">正在启动...</string>
+    <string name="connect_to_tailnet_prefix">"重新连接以与 "</string>
+    <string name="connect_to_tailnet_suffix">" tailnet 中的其他设备通信。"</string>
+    <string name="welcome_to_tailscale">欢迎使用 Tailscale</string>
+    <string name="login_to_join_your_tailnet">登录以加入您的 tailnet 并连接您的设备。</string>
+    <string name="give_permissions">设置 VPN 连接以便开始使用 Tailscale。</string>
+    <string name="keyExpiryExplainer">重新验证以保持与 Tailscale 的连接。</string>
+    <string name="deviceKeyNeverExpires">设备密钥永不过期</string>
+    <string name="deviceKeyExpires">设备密钥将于 %s 过期</string>
+    <string name="deviceKeyExpired">设备密钥已于 %s 过期</string>
+    <string name="machine_auth_required">需要管理员批准</string>
+    <string name="machine_auth_explainer">此设备必须经过管理员批准才能连接到 tailnet。</string>
+    <string name="open_admin_console">打开管理控制台</string>
+    <string name="needs_machine_auth">需要授权</string>
+    <string name="disable">禁用</string>
+    <string name="enable">启用</string>
+    <string name="stop">停止</string>
+
+    <!-- Strings for peer details -->
+    <string name="os">操作系统</string>
+    <string name="key_expiry">密钥过期</string>
+    <string name="tailscale_addresses">Tailscale 地址</string>
+
+    <!-- Strings for MDM settings -->
+    <string name="current_mdm_settings">当前 MDM 设置</string>
+    <string name="mdm_settings">MDM 设置</string>
+    <string name="managed_by_orgName">由 %1$s 管理</string>
+    <string name="managed_by_explainer">您的组织正在管理此设备上的 Tailscale。某些功能可能已被系统管理员自定义或隐藏。</string>
+    <string name="managed_by_explainer_orgName">%1$s 正在管理此设备上的 Tailscale。某些功能可能已被系统管理员自定义或隐藏。</string>
+    <string name="open_support">打开支持</string>
+
+    <!-- State strings -->
+    <string name="please_login">需要登录</string>
+    <string name="stopped">未连接</string>
+    <string name="connect_to_vpn">连接到 VPN</string>
+
+    <!-- Time conversion templates -->
+    <string name="under_a_minute">一分钟内</string>
+    <string name="in_x_minutes">%d 分钟后</string>
+    <string name="in_x_hours">%d 小时后</string>
+    <string name="in_x_days">%d 天后</string>
+    <string name="in_x_months">%d 个月后</string>
+    <string name="in_x_years">%.1f 年后</string>
+
+    <string name="ago_x_minutes">%d 分钟前</string>
+    <string name="ago_x_hours">%d 小时前</string>
+    <string name="ago_x_days">%d 天前</string>
+    <string name="ago_x_months">%d 个月前</string>
+    <string name="ago_x_years">%.1f 年前</string>
+
+    <!-- Strings for the user switcher -->
+    <string name="logout_failed">此时无法退出登录。请重试。</string>
+    <string name="error">错误</string>
+    <string name="accounts">帐户</string>
+    <string name="add_account">添加另一个帐户</string>
+    <string name="add_account_short">添加帐户</string>
+    <string name="reauthenticate">重新验证</string>
+    <string name="switch_user_failed">无法切换用户。请重试。</string>
+    <string name="add_profile_failed">无法添加新配置文件。请重试。</string>
+    <string name="invalidCustomUrl">请输入格式为 https://server.com 的有效 URL</string>
+    <string name="invalidCustomURLTitle">无效的 URL</string>
+    <string name="custom_control_menu">使用备用服务器</string>
+    <string name="custom_control_menu_desc">输入备用 Tailscale 服务器或您自行托管的 Headscale 服务器的 URL。</string>
+    <string name="auth_key_menu">使用授权密钥</string>
+    <string name="auth_key_title">使用授权密钥添加帐户</string>
+    <string name="auth_key_explanation">输入由 Tailscale 管理控制台生成的有效授权密钥</string>
+    <string name="auth_key_placeholder">例如：tskey-auth-mYta1ln3tCNTRL-s3cr3tauthk3yFr0madM1n</string>
+    <string name="invalidAuthKey">提供的授权密钥格式不正确。</string>
+    <string name="invalidAuthKeyTitle">无效的密钥</string>
+    <string name="custom_control_url_title">自定义控制服务器 URL</string>
+    <string name="auth_key_input_title">授权密钥</string>
+    <string name="delete_tailnet">删除 tailnet</string>
+    <string name="contact_support">联系支持</string>
+    <string name="request_deletion_nonowner">所有与数据删除或移除相关的请求均由我们的支持团队处理。要打开请求，请点击下方的联系支持按钮，以在浏览器中跳转至我们的联系表单。填写表单，客户支持工程师将直接与您协作提供帮助。</string>
+    <string name="request_deletion_owner_part1">
+    作为此 tailnet 的所有者，要将自己从 tailnet 中移除，您可以重新分配所有权并联系我们的支持团队，或者通过管理控制台删除整个 tailnet。要执行后者，请前往
+</string>
+    <string name="request_deletion_owner_part2a">
+    并在其中查找“删除 tailnet”。
+</string>
+
+    <string name="request_deletion_owner_part2b">
+    所有与数据删除或移除相关的请求均由我们的支持团队处理。要打开请求，请点击下方的联系支持按钮，以在浏览器中跳转至我们的联系表单。填写表单，客户支持工程师将直接与您协作提供帮助。
+</string>
+
+    <!-- Strings for ExitNode picker -->
+    <string name="choose_exit_node">选择出口节点</string>
+    <string name="choose_mullvad_exit_node">Mullvad 出口节点</string>
+    <string name="best_available">最佳可用</string>
+    <string name="run_as_exit_node">运行为出口节点</string>
+    <string name="run_this_device_as_an_exit_node">运行为出口节点？</string>
+    <string name="run_exit_node_explainer">您 tailnet 中的其他设备将能够通过此 Android 设备路由其互联网流量。请确保在管理控制台中批准此出口节点，以便其他设备可以看到它。</string>
+    <string name="run_exit_node_caution">运行出口节点将严重影响电池寿命。在按流量计费的数据计划中，也可能会产生大量的蜂窝数据费用。不再需要时，请务必禁用此功能。</string>
+    <string name="stop_running_as_exit_node">停止运行为出口节点</string>
+    <string name="start_running_as_exit_node">运行为出口节点</string>
+    <string name="running_as_exit_node">正在运行为出口节点</string>
+    <string name="run_exit_node_explainer_running">您 tailnet 中的其他设备现在可以通过此 Android 设备路由其互联网流量。请确保在管理控制台中批准此出口节点，以便其他设备可以看到它。</string>
+    <string name="enabled">已启用</string>
+    <string name="disabled">已禁用</string>
+    <string name="exit_node_mdm_orgname">%1$s 要求您使用出口节点。</string>
+    <string name="exit_node_mdm">您的组织要求您使用出口节点。</string>
+
+    <!-- Strings for the tailnet lock screen -->
+    <string name="tailnet_lock">Tailnet 锁定</string>
+    <string name="tailnet_lock_explainer">"Tailnet 锁定允许您网络中的设备在信任其连接之前验证协调服务器分发的公钥。"</string>
+    <string name="tailnet_lock_enabled">Tailnet 锁定当前已启用。</string>
+    <string name="tailnet_lock_disabled">Tailnet 锁定当前未启用。</string>
+    <string name="this_node_has_been_signed">此节点已由另一台设备签名。</string>
+    <string name="this_node_has_not_been_signed">此节点尚未由另一台设备签名。</string>
+    <string name="this_node_is_trusted">此节点受信任，可更改 Tailnet 锁定配置。</string>
+    <string name="this_node_is_not_trusted">此节点不受信任，无法更改 Tailnet 锁定配置。</string>
+    <string name="copy_to_clipboard">复制到剪贴板</string>
+    <string name="node_key">节点密钥</string>
+    <string name="tailnet_lock_key">Tailnet 锁定密钥</string>
+    <string name="node_key_explainer">用于从您 tailnet 中的另一台签名设备对此节点进行签名。</string>
+    <string name="tailnet_lock_key_explainer">用于授权更改 Tailnet 锁定配置。</string>
+
+    <!-- Strings for the bug report screen -->
+    <string name="bug_report_id">错误报告 ID</string>
+    <string name="learn_more">了解更多</string>
+
+    <!-- Strings for DNS settings -->
+    <string name="dns_settings">DNS 设置</string>
+    <string name="using_tailscale_dns">使用 Tailscale DNS</string>
+    <string name="this_device_is_using_tailscale_to_resolve_dns_names">此设备正在使用 Tailscale 解析 DNS 名称。</string>
+    <string name="resolvers">解析器</string>
+    <string name="search_domains">搜索域</string>
+    <string name="not_running">未运行</string>
+    <string name="tailscale_is_not_running_this_device_is_using_the_system_dns_resolver">Tailscale 未运行。此设备正在使用系统的 DNS 解析器。</string>
+    <string name="this_device_is_using_the_system_dns_resolver">此设备正在使用系统 DNS 解析器。</string>
+    <string name="not_using_tailscale_dns">未使用 Tailscale DNS</string>
+    <string name="allow_lan_access">允许局域网访问</string>
+    <string name="countries">国家/地区</string>
+    <string name="cities_available">可用城市</string>
+
+    <!-- Strings for MDM Settings Manifest (app_restrictions.xml) -->
+    <string name="prevents_the_user_from_disconnecting_tailscale">防止用户断开 Tailscale 连接。</string>
+    <string name="force_enabled_connection_toggle">强制启用连接开关</string>
+    <string name="exit_node_id">出口节点 ID</string>
+    <string name="forces_the_tailscale_client_to_always_use_the_exit_node_with_the_given_id">强制 Tailscale 客户端始终使用具有给定 ID 的出口节点。</string>
+    <string name="managed_by_organization_name">管理方 - 组织名称</string>
+    <string name="managed_by_caption">管理方 - 标题</string>
+    <string name="managed_by_url">管理方 - URL</string>
+    <string name="shows_a_button_to_open_support_resources_next_to_the_organization_name">在组织名称旁边显示一个打开支持资源的按钮。</string>
+    <string name="shows_the_given_caption_next_to_the_organization_name_in_the_client">在客户端中的组织名称旁边显示给定的标题。</string>
+    <string name="shows_the_given_organization_name_in_the_client">在客户端中显示给定的组织名称。</string>
+    <string name="the_tailnet_policy_allows_the_organization_to_specify_a_tailnet">Tailnet 策略允许组织指定一个 tailnet，其身份提供商将用于登录页面。如果策略值以 required: 为前缀，Tailscale 将强制使用该身份提供商，并且不允许使用其他任何方式登录。</string>
+    <string name="required_suggested_tailnet">必需/建议的 Tailnet</string>
+    <string name="custom_control_server_url">自定义控制服务器 URL</string>
+    <string name="use_this_field_to_specify_a_custom_coordination_server_url_such_as_a_headscale_instance">使用此字段指定自定义协调服务器 URL，例如 Headscale 实例。</string>
+    <string name="hidden_network_devices">隐藏的网络设备</string>
+    <string name="hides_the_specified_categories_of_network_devices_from_the_devices_list_in_the_client">从客户端的设备列表中隐藏指定类别的网络设备。</string>
+    <string name="allow_lan_access_when_using_an_exit_node">使用出口节点时允许局域网访问</string>
+    <string name="enable_posture_checking">启用态势检查</string>
+    <string name="device_serial_number">运行 Tailscale 的设备的序列号</string>
+    <string name="device_serial_number_descr">允许管理员使用 MDM 将设备序列号传递给 Tailscale 客户端。</string>
+    <string name="use_tailscale_dns_settings">使用 Tailscale DNS 设置</string>
+    <string name="use_tailscale_subnets">使用 Tailscale 子网</string>
+    <string name="allow_incoming_connections">允许传入连接</string>
+    <string name="exit_node_picker_visibility">出口节点选择器可见性</string>
+    <string name="shows_or_hides_the_exit_node_picker_in_the_main_view_of_the_app">显示或隐藏应用主视图中的出口节点选择器。</string>
+    <string name="shows_or_hides_the_tailnet_lock_configuration_ui">显示或隐藏 Tailnet 锁定配置 UI。</string>
+    <string name="manage_tailnet_lock_visibility">管理 Tailnet 锁定可见性</string>
+    <string name="shows_or_hides_the_ui_to_run_the_android_device_as_an_exit_node">显示或隐藏将 Android 设备作为出口节点运行的 UI。</string>
+    <string name="run_as_exit_node_visibility">运行为出口节点可见性</string>
+    <string name="defines_an_auth_key_that_will_be_used_for_login">定义将用于登录的授权密钥。</string>
+    <string name="auth_key">授权密钥</string>
+    <string name="skips_the_intro_page_shown_to_users_that_open_the_app_for_the_first_time">跳过首次打开应用的用户显示的介绍页面</string>
+    <string name="onboarding_flow">跳过入职流程</string>
+
+    <!-- Permissions Management -->
+    <string name="permissions">权限</string>
+    <string name="permission_write_external_storage">存储</string>
+    <string name="permission_write_external_storage_needed">我们使用存储来接收通过 Taildrop 发送的文件。</string>
+    <string name="permission_post_notifications">通知</string>
+    <string name="permission_post_notifications_needed">我们使用通知来帮助您排查断开的连接，或在您需要重新验证到网络之前通知您。持久状态通知默认处于关闭状态，可以在系统设置中启用。</string>
+    <string name="open_notification_settings">前往通知设置</string>
+    <string name="notification_settings_explanation">持久状态通知默认处于关闭状态，可以在系统设置中启用。</string>
+    <string name="taildrop_dir">Taildrop 目录</string>
+    <string name="taildrop_dir_access">Taildrop 目录访问权限</string>
+    <string name="permission_taildrop_dir">授予 Tailscale 访问文件夹的权限，以便能够下载通过 Taildrop 发送给您的传入文件。</string>
+    <string name="dir_access">目录访问权限</string>
+    <string name="pick_dir">选择其他目录</string>
+
+    <!-- Strings for the share activity -->
+    <string name="share">使用 Taildrop 发送</string>
+    <string name="share_device_not_connected">无法与此设备共享文件。此设备当前未连接到 tailnet。</string>
+    <string name="no_files_to_share">没有可共享的文件</string>
+    <string name="file_count">%1$s 个文件</string>
+    <string name="connect_to_your_tailnet_to_share_files">连接到您的 tailnet 以共享文件。</string>
+    <string name="my_devices">我的设备</string>
+    <string name="no_devices_to_share_with">您的 tailnet 上没有可共享的设备</string>
+    <string name="taildrop_share_failed">Taildrop 失败。部分文件未共享。请重试。</string>
+    <string name="taildrop_sending">正在发送</string>
+    <string name="taildrop_share_failed_short">失败</string>
+
+
+    <!-- Error Dialog Titles -->
+    <string name="logout_failed_title">退出登录失败</string>
+    <string name="switch_user_failed_title">无法切换用户</string>
+    <string name="add_profile_failed_title">无法添加配置文件</string>
+    <string name="share_device_not_connected_title">未连接</string>
+    <string name="taildrop_share_failed_title">Taildrop 失败</string>
+
+    <!-- Strings for the intro screen -->
+    <string name="getStarted">开始使用</string>
+    <string name="welcome1">Tailscale 是一个用于安全连接您的设备的网状 VPN。</string>
+    <string name="welcome2">所有连接都是设备到设备的，因此我们要么看不到您的数据。我们会收集并使用您的电子邮件地址和姓名，以及您的设备名称、操作系统版本和 IP 地址，以帮助您连接设备并管理您的设置。我们会记录您何时连接到网络。</string>
+    <string name="scan_to_connect_to_your_tailnet">扫描此 QR 码以登录到您的 tailnet</string>
+    <string name="enter_code_to_connect_to_tailnet">或在管理控制台的“机器”>“添加设备”部分输入此代码：</string>
+
+    <!-- Strings for intent handling -->
+    <string name="vpn_is_not_ready_to_start">VPN 尚未准备好启动</string>
+    <string name="tailscale_is_not_setup">Tailscale 尚未设置</string>
+    <string name="no_peers_found">未找到对等节点</string>
+    <string name="no_peers_with_name_found">未找到名为 %1$s 的对等节点</string>
+    <string name="multiple_peers_with_name_found">找到多个名为 %1$s 的对等节点</string>
+    <string name="peer_with_name_is_not_an_exit_node">名为 %1$s 的对等节点不是出口节点</string>
+    <string name="use_exit_node_intent_failed">使用出口节点 Intent 失败</string>
+
+    <!-- Strings for the IPNReceiver -->
+    <string name="title_connection_failed">Tailscale 连接失败</string>
+    <string name="body_open_tailscale">点击此处打开 Tailscale。</string>
+
+    <!-- Strings describing notification channels -->
+    <string name="taildrop_file_transfers">Taildrop 文件传输</string>
+    <string name="vpn_status">VPN 状态</string>
+    <string name="vpn_start">VPN 启动</string>
+    <string name="notifications_delivered_when_user_interaction_is_required_to_establish_the_vpn_tunnel">在需要用户交互以建立 VPN 隧道时发送的通知。</string>
+    <string name="optional_notifications_which_display_the_status_of_the_vpn_tunnel">显示 VPN 隧道状态的可选通知。</string>
+    <string name="notifications_delivered_when_a_file_is_received_using_taildrop">使用 Taildrop 接收文件时发送的通知。</string>
+    <string name="health_channel_name">错误和警告</string>
+    <string name="health_channel_description">此通知类别用于传递重要的状态通知，应保持启用状态。例如，它用于通知您有关影响互联网连接的错误或警告。</string>
+    <string name="copy_ip_address">复制 IP 地址</string>
+    <string name="ping">Ping</string>
+    <string name="relayed_connection">中继连接 (%1$s)</string>
+    <string name="direct_connection">直接连接</string>
+    <string name="peer_relayed_connection">对等中继连接</string>
+    <string name="pinging_node_name">正在 Ping %1$s</string>
+    <string name="pingFailed">Ping 失败</string>
+    <string name="an_unknown_error_occurred_please_try_again">发生未知错误。请重试。</string>
+    <string name="request_timed_out_make_sure_that_is_online">请求超时。请确保“%1$s”在线。</string>
+    <string name="split_tunneling">应用拆分隧道</string>
+    <string name="exclude_certain_apps_from_using_tailscale">排除某些应用使用 Tailscale</string>
+    <string name="selected_apps_will_access_the_internet_directly_without_using_tailscale">在此处选择的应用将直接访问互联网，而不使用 Tailscale。</string>
+    <string name="count_excluded_apps">已排除的应用 (%1$s)</string>
+    <string name="certain_apps_are_not_routed_via_tailscale">在此设备上，某些应用不通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
+    <string name="only_specific_apps_are_routed_via_tailscale">在此设备上，只有特定应用通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
+    <string name="specifies_a_list_of_apps_that_will_be_excluded_from_tailscale_routes_and_dns_even_when_tailscale_is_running_all_other_apps_will_use_tailscale">指定即使 Tailscale 正在运行，也将被排除在 Tailscale 路由和 DNS 之外的应用列表。所有其他应用将使用 Tailscale。</string>
+    <string name="specifies_a_list_of_apps_that_will_always_use_tailscale_routes_and_dns_when_tailscale_is_running_all_other_apps_won_t_use_tailscale_if_this_value_is_non_empty">指定当 Tailscale 正在运行时，将始终使用 Tailscale 路由和 DNS 的应用列表。如果此值非空，所有其他应用将不会使用 Tailscale。</string>
+    <string name="included_packages">包含的包</string>
+    <string name="excluded_packages">排除的包</string>
+
+    <!-- Strings for the Mullvad info view -->
+    <string name="enable_in_the_admin_console">在管理控制台中启用</string>
+    <string name="mullvad_info_explainer">在管理控制台上启用 Mullvad VPN 后，您将能够使用 Mullvad 的全球服务器网络作为出口节点来加密和路由您的流量。</string>
+    <string name="mullvad_info_title">Mullvad VPN 未配置</string>
+    <string name="the_mullvad_vpn_logo">Mullvad VPN 徽标</string>
+    <string name="health_warnings">健康警告</string>
+    <string name="no_issues_found">未发现问题</string>
+    <string name="tailscale_is_operating_normally">Tailscale 运行正常。</string>
+
+    <!-- Strings for the multiple VPNs dialog -->
+    <string name="vpn_permission_denied">VPN 权限被拒绝</string>
+    <string name="multiple_vpn_explainer">只能激活一个 VPN，目前似乎已有另一个 VPN 在运行。在启动 Tailscale 之前，请禁用其他 VPN。</string>
+    <string name="go_to_settings">前往设置</string>
+    <string name="subnet_routes">子网路由</string>
+    <string name="run_as_subnet_router_header">向未运行 Tailscale 的机器播发路由，使其在您的 tailnet 中可用。路由必须在管理控制台中获得批准。</string>
+    <string name="open_kb_article">打开知识库文章</string>
+    <string name="delete_route">删除路由</string>
+    <string name="edit_route">编辑路由</string>
+    <string name="enter_valid_route">以 CIDR 格式输入有效的 IPv4 或 IPv6 路由。</string>
+    <string name="advertised_routes">播发的路由</string>
+    <string name="no_advertised_routes">无播发的路由</string>
+    <string name="add_new_route">添加路由</string>
+    <string name="invalid_route">无效的路由</string>
+    <string name="valid_route">有效的路由</string>
+    <string name="route_help_text">例如 192.168.1.0/24</string>
+    <string name="run_as_subnet_router">运行为子网路由器</string>
+    <string name="use_tailscale_subnets_subtitle">根据您网络的规则路由流量。某些网络需要此功能才能访问不以 100.x.y.z 开头的 IP 地址。</string>
+    <string name="subnet_routing">子网路由</string>
+    <string name="specifies_a_device_name_to_be_used_instead_of_the_automatic_default">指定要使用的设备名称，而不是自动默认名称。</string>
+    <string name="hostname">主机名</string>
+    <string name="failed_to_save">保存失败</string>
+
+    <!-- Strings for fallback VPN dialog -->
+    <string name="vpn_permission_needed">需要 VPN 权限</string>
+    <string name="vpn_explainer">Tailscale 需要 VPN 访问权限，但您的设备似乎未显示 VPN 设置。如果您正在使用其他 VPN 应用或有工作策略，请先禁用它们，然后再试。</string>
+
+    <!-- Strings for the taildrop directory picker interstitial -->
+    <string name="taildrop_directory_picker_title">Taildrop 目录</string>
+    <string name="taildrop_directory_picker_body">您尚未选择用于接收 Taildrop 传输的目录。请选择或创建一个目标目录。</string>
+    <string name="taildrop_directory_picker_info">什么是 Taildrop？</string>
+    <string name="taildrop_directory_picker_button">打开目录选择器</string>
+
+    <!-- Strings for Hardware Attestation MDM setting -->
+    <string name="enable_hardware_attestation">启用硬件认证</string>
+    <string name="use_hardware_backed_keys_to_bind_node_identity_to_the_device">使用硬件支持的密钥将节点身份绑定到设备</string>
+
+</resources>

@@ -24,12 +24,6 @@ object AppSourceChecker {
 
     Log.d(TAG, "Installer package name: $installerPackageName")
 
-    return when (installerPackageName) {
-      "com.android.vending" -> "googleplay"
-      "org.fdroid.fdroid" -> "fdroid"
-      "com.amazon.venezia" -> "amazon"
-      null -> "unknown"
-      else -> "unknown($installerPackageName)"
-    }
+    return "unknown"
   }
 }
