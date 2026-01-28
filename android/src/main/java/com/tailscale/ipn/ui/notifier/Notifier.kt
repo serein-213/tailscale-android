@@ -20,6 +20,9 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 
+// When set to true, the Notifier will inject fake health warnings for testing purposes
+val INJECT_FAKE_HEALTH_WARNINGS = false
+
 // Notifier is a wrapper around the IPN Bus notifier.  It provides a way to watch
 // for changes in various parts of the Tailscale engine.  You will typically only use
 // a single Notifier per instance of your application which lasts for the lifetime of
@@ -75,21 +78,27 @@ object Notifier {
       manager =
           app.watchNotifications(mask.toLong()) { notification ->
             try {
-                val notify = decoder.decodeFromStream<Notify>(notification.inputStream())
-                notify.State?.let { state.set(Ipn.State.fromInt(it)) }
-                notify.NetMap?.let(netmap::set)
-                notify.Prefs?.let(prefs::set)
-                notify.Engine?.let(engineStatus::set)
-                notify.TailFSShares?.let(tailFSShares::set)
-                notify.BrowseToURL?.let(browseToURL::set)
-                notify.LoginFinished?.let { loginFinished.set(it.property) }
-                notify.Version?.let(version::set)
-                notify.OutgoingFiles?.let(outgoingFiles::set)
-                notify.FilesWaiting?.let(filesWaiting::set)
-                notify.IncomingFiles?.let(incomingFiles::set)
-                notify.Health?.let(health::set)
+              val notify = decoder.decodeFromStream<Notify>(notification.inputStream())
+              notify.State?.let { state.set(Ipn.State.fromInt(it)) }
+              notify.NetMap?.let(netmap::set)
+              notify.Prefs?.let(prefs::set)
+              notify.Engine?.let(engineStatus::set)
+              notify.TailFSShares?.let(tailFSShares::set)
+              notify.BrowseToURL?.let(browseToURL::set)
+              notify.LoginFinished?.let { loginFinished.set(it.property) }
+              notify.Version?.let(version::set)
+              notify.OutgoingFiles?.let(outgoingFiles::set)
+              notify.FilesWaiting?.let(filesWaiting::set)
+              notify.IncomingFiles?.let(incomingFiles::set)
+              notify.Health?.let {
+                if (INJECT_FAKE_HEALTH_WARNINGS) {
+                  injectFakeHealthState()
+                } else {
+                  health.set(it)
+                }
+              }
             } catch (e: Exception) {
-                TSLog.e(TAG, "Error decoding notification: ${e.message}", e)
+              TSLog.e(TAG, "Error decoding notification: ${e.message}", e)
             }
           }
     }
