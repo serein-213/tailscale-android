@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/textproto"
+	"unsafe"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -41,7 +42,6 @@ func (app *App) CallLocalAPIMultipart(timeoutMillis int, method, endpoint string
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in CallLocalAPIMultipart %s: %s", p, debug.Stack())
-			panic(p)
 		}
 	}()
 
@@ -103,7 +103,8 @@ func (app *App) CallLocalAPIMultipart(timeoutMillis int, method, endpoint string
 	case error:
 		return nil, t
 	default:
-		panic("unexpected result type, this shouldn't happen")
+		log.Printf("unexpected result type in CallLocalAPIMultipart: %T", result)
+		return nil, fmt.Errorf("unexpected result type: %T", result)
 	}
 }
 
@@ -127,7 +128,6 @@ func (app *App) callLocalAPI(timeoutMillis int, method, endpoint string, header 
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in callLocalAPI %s: %s", p, debug.Stack())
-			panic(p)
 		}
 	}()
 
@@ -141,10 +141,14 @@ func (app *App) callLocalAPI(timeoutMillis int, method, endpoint string, header 
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
-	maps.Copy(req.Header, header)
 	if err != nil {
 		return nil, fmt.Errorf("error creating new request for %s: %w", endpoint, err)
 	}
+
+	if header != nil {
+		maps.Copy(req.Header, header)
+	}
+	
 	deadline, _ := ctx.Deadline()
 	pipeReader, pipeWriter := net.Pipe()
 	pipeReader.SetDeadline(deadline)
@@ -162,7 +166,7 @@ func (app *App) callLocalAPI(timeoutMillis int, method, endpoint string, header 
 		defer func() {
 			if p := recover(); p != nil {
 				log.Printf("panic in CallLocalAPI.ServeHTTP %s: %s", p, debug.Stack())
-				panic(p)
+
 			}
 		}()
 
@@ -212,8 +216,23 @@ func (r *Response) Body() net.Conn {
 	return r.bodyReader
 }
 
-func (r *Response) BodyBytes() ([]byte, error) {
-	return io.ReadAll(r.bodyReader)
+func (r *Response) BodyBytes() *BodyResult {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("panic in BodyBytes: %v", p)
+		}
+	}()
+
+	ret := &BodyResult{}
+	// Go 1.25.x alignment workaround for gomobile arm64.
+	if addr := uintptr(unsafe.Pointer(ret)); addr%8 != 0 {
+		log.Printf("W: BodyBytes return struct not aligned to 8 bytes: 0x%x (addr%%8=%d)", addr, addr%8)
+	}
+
+	b, err := io.ReadAll(r.bodyReader)
+	ret.B = b
+	ret.E = err
+	return ret
 }
 
 func (r *Response) BodyInputStream() InputStream {

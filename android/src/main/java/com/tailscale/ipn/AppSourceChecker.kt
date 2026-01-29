@@ -11,19 +11,6 @@ object AppSourceChecker {
   const val TAG = "AppSourceChecker"
 
   fun getInstallSource(context: Context): String {
-    val packageManager = context.packageManager
-    val packageName = context.packageName
-    Log.d(TAG, "Package name: $packageName")
-
-    val installerPackageName =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          packageManager.getInstallSourceInfo(packageName).installingPackageName
-        } else {
-          @Suppress("deprecation") packageManager.getInstallerPackageName(packageName)
-        }
-
-    Log.d(TAG, "Installer package name: $installerPackageName")
-
     return "unknown"
   }
 }
