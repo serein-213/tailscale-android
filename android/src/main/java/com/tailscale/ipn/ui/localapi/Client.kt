@@ -331,7 +331,12 @@ class Request<T>(
                     body?.let { InputStreamAdapter(it.inputStream()) })
         // TODO: use the streaming body for performance
         // An empty body is a perfectly valid response and indicates success
-        val respData = resp.bodyBytes() ?: ByteArray(0)
+        val bodyResult = resp.bodyBytes()
+        if (bodyResult?.e != null) {
+            responseHandler(Result.failure(bodyResult.e))
+            return@launch
+        }
+        val respData = bodyResult?.b ?: ByteArray(0)
 
         @Suppress("UNCHECKED_CAST")
         val response: Result<T> =
