@@ -28,11 +28,10 @@ class HardwareKeyStore() {
         load(null)
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
     fun newID(): String {
         var id: String
         do {
-            id = Random.nextBytes(4).toHexString()
+            id = Random.nextBytes(4).joinToString("") { "%02x".format(it) }
         } while (keyStoreKeys.containsKey(id))
         return id
     }

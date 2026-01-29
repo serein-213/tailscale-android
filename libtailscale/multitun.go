@@ -85,7 +85,6 @@ func (d *multiTUN) run() {
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in multiTUN.run %s: %s", p, debug.Stack())
-			panic(p)
 		}
 	}()
 
@@ -173,7 +172,6 @@ func (d *multiTUN) readFrom(dev *tunDevice) {
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in multiTUN.readFrom %s: %s", p, debug.Stack())
-			panic(p)
 		}
 	}()
 
@@ -207,7 +205,6 @@ func (d *multiTUN) runDevice(dev *tunDevice) {
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in multiTUN.runDevice %s: %s", p, debug.Stack())
-			panic(p)
 		}
 	}()
 
@@ -225,7 +222,6 @@ func (d *multiTUN) runDevice(dev *tunDevice) {
 		defer func() {
 			if p := recover(); p != nil {
 				log.Printf("panic in multiTUN.readFrom.events %s: %s", p, debug.Stack())
-				panic(p)
 			}
 		}()
 		for {
@@ -259,7 +255,8 @@ func (d *multiTUN) add(dev tun.Device) {
 func (d *multiTUN) File() *os.File {
 	// The underlying file descriptor is not constant on Android.
 	// Let's hope no-one uses it.
-	panic("not available on Android")
+	log.Printf("multiTUN.File: not available on Android")
+	return nil
 }
 
 func (d *multiTUN) Read(data [][]byte, sizes []int, offset int) (int, error) {

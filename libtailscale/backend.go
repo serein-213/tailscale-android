@@ -64,7 +64,7 @@ func start(dataDir, directFileRoot string, hwAttestationPref bool, appCtx AppCon
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in Start %s: %s", p, debug.Stack())
-			panic(p)
+
 		}
 	}()
 
@@ -352,8 +352,8 @@ func (a *App) newBackend(dataDir string, appCtx AppContext, store *stateStore,
 	go func() {
 		err := lb.Start(ipn.Options{})
 		if err != nil {
-			log.Printf("Failed to start LocalBackend, panicking: %s", err)
-			panic(err)
+			log.Printf("Failed to start LocalBackend: %s", err)
+			return
 		}
 		a.ready.Done()
 	}()
