@@ -33,6 +33,10 @@ const (
 )
 
 func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx AppContext) Application {
+	if appCtx == nil {
+		log.Printf("error: newApp called with nil appCtx")
+		return nil
+	}
 	a := &App{
 		directFileRoot: directFileRoot,
 		dataDir:        dataDir,
@@ -60,7 +64,7 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 		defer func() {
 			if p := recover(); p != nil {
 				log.Printf("panic in runBackend %s: %s", p, debug.Stack())
-				panic(p)
+
 			}
 		}()
 
@@ -83,7 +87,8 @@ func fatalErr(err error) {
 func (a *App) osVersion() string {
 	version, err := a.appCtx.GetOSVersion()
 	if err != nil {
-		panic(err)
+		log.Printf("error: App.osVersion: %v", err)
+		return "unknown"
 	}
 	return version
 }
@@ -93,7 +98,8 @@ func (a *App) osVersion() string {
 func (a *App) modelName() string {
 	model, err := a.appCtx.GetModelName()
 	if err != nil {
-		panic(err)
+		log.Printf("error: App.modelName: %v", err)
+		return "unknown"
 	}
 	return model
 }
@@ -101,7 +107,8 @@ func (a *App) modelName() string {
 func (a *App) isChromeOS() bool {
 	isChromeOS, err := a.appCtx.IsChromeOS()
 	if err != nil {
-		panic(err)
+		log.Printf("error: App.isChromeOS: %v", err)
+		return false
 	}
 	return isChromeOS
 }
@@ -109,7 +116,8 @@ func (a *App) isChromeOS() bool {
 // SetupLogs sets up remote logging.
 func (b *backend) setupLogs(logDir string, logID logid.PrivateID, logf logger.Logf, health *health.Tracker) {
 	if b.netMon == nil {
-		panic("netMon must be created prior to SetupLogs")
+		log.Printf("error: netMon must be created prior to SetupLogs")
+		return
 	}
 	transport := logpolicy.NewLogtailTransport(logtail.DefaultHost, b.netMon, health, log.Printf)
 
