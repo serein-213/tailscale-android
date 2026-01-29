@@ -153,8 +153,13 @@ type FilePart struct {
 // LocalAPIResponse is a response to a localapi call, analogous to an http.Response.
 type LocalAPIResponse interface {
 	StatusCode() int
-	BodyBytes() ([]byte, error)
+	BodyBytes() *BodyResult
 	BodyInputStream() InputStream
+}
+
+type BodyResult struct {
+	B []byte
+	E error
 }
 
 // NotificationCallback is callback for receiving ipn.Notify messages.

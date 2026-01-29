@@ -210,7 +210,7 @@ func (b *backend) NetworkChanged(ifname string) {
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("panic in NetworkChanged %s: %s", p, debug.Stack())
-			panic(p)
+
 		}
 	}()
 
