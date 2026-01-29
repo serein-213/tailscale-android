@@ -92,19 +92,25 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
 
   override fun shouldUseGoogleDNSFallback(): Boolean = BuildConfig.USE_GOOGLE_DNS_FALLBACK
 
-  override fun log(s: String, s1: String) {
-    Log.d(s, s1)
+  override fun log(s: String?, s1: String?) {
+    if (s != null && s1 != null) {
+      TSLog.d(s, s1)
+    }
   }
 
   fun getLibtailscaleApp(): libtailscale.Application {
     if (!isInitialized) {
-      initOnce() // Calls the synchronized initialization logic
+      initOnce()
+    }
+    if (!::app.isInitialized) {
+      throw IllegalStateException("libtailscale app not initialized")
     }
     return app
   }
 
   override fun onCreate() {
     super.onCreate()
+    TSLog.init(this)
     appInstance = this
     setUnprotectedInstance(this)
     mdmChangeReceiver = MDMSettingsChangedReceiver()
@@ -143,28 +149,63 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
     if (isInitialized) {
       return
     }
-    initializeApp()
-    isInitialized = true
+    TSLog.d("App", "initOnce: starting")
+    try {
+      initializeApp()
+      if (::app.isInitialized) {
+        isInitialized = true
+        TSLog.d("App", "initOnce: successful")
+      } else {
+        TSLog.e("App", "initOnce: libtailscale app not initialized after initializeApp")
+      }
+    } catch (e: Exception) {
+      TSLog.e("App", "initOnce: failed: ${e.message}", e)
+    }
   }
 
   private fun initializeApp() {
-    // Check if a directory URI has already been stored.
-    val storedUri = getStoredDirectoryUri()
-    val rm = getSystemService(Context.RESTRICTIONS_SERVICE) as RestrictionsManager
-    val hardwareAttestation = rm.applicationRestrictions.getBoolean(MDMSettings.KEY_HARDWARE_ATTESTATION, true)
-    if (storedUri != null && storedUri.toString().startsWith("content://")) {
-      startLibtailscale(storedUri.toString(), hardwareAttestation)
-    } else {
-      startLibtailscale(this.filesDir.absolutePath, hardwareAttestation)
+    TSLog.d("App", "initializeApp: starting")
+    val storedUri = try { getStoredDirectoryUri() } catch (e: Exception) { null }
+    val rm = getSystemService(Context.RESTRICTIONS_SERVICE) as? RestrictionsManager
+    val hardwareAttestation = try {
+      rm?.applicationRestrictions?.getBoolean(MDMSettings.KEY_HARDWARE_ATTESTATION, false) ?: false
+    } catch (e: Exception) {
+      false
     }
-    healthNotifier = HealthNotifier(Notifier.health, Notifier.state, applicationScope)
-    connectivityManager = this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    NetworkChangeCallback.monitorDnsChanges(connectivityManager, dns)
-    initViewModels()
-    applicationScope.launch {
-      val rm = getSystemService(Context.RESTRICTIONS_SERVICE) as RestrictionsManager
-      MDMSettings.update(get(), rm)
-      Notifier.state.collect { _ ->
+
+    TSLog.d("App", "initializeApp: hardwareAttestation=$hardwareAttestation")
+
+    try {
+      if (storedUri != null && storedUri.toString().startsWith("content://")) {
+        startLibtailscale(storedUri.toString(), hardwareAttestation)
+      } else {
+        startLibtailscale(this.filesDir.absolutePath, hardwareAttestation)
+      }
+    } catch (e: Exception) {
+      TSLog.e("App", "initializeApp: startLibtailscale failed", e)
+      return
+    }
+
+    try {
+      healthNotifier = HealthNotifier(Notifier.health, Notifier.state, applicationScope)
+      connectivityManager = this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+      NetworkChangeCallback.monitorDnsChanges(connectivityManager, dns)
+      initViewModels()
+    } catch (e: Exception) {
+      TSLog.e("App", "initializeApp: supplementary init failed", e)
+    }
+
+    applicationScope.launch(Dispatchers.Default) {
+      try {
+        val rmAsync = getSystemService(Context.RESTRICTIONS_SERVICE) as? RestrictionsManager
+        if (rmAsync != null) {
+          MDMSettings.update(this@App, rmAsync)
+        }
+      } catch (e: Exception) {
+        TSLog.e("App", "MDM update failed: ${e.message}")
+      }
+      
+      try {
         combine(Notifier.state, MDMSettings.forceEnabled.flow, Notifier.prefs, Notifier.netmap) {
                 state,
                 forceEnabled,
@@ -175,16 +216,12 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
             .distinctUntilChanged()
             .collect { (state, hideDisconnectAction, exitNodeName) ->
               val ableToStartVPN = state > Ipn.State.NeedsMachineAuth
-              // If VPN is stopped, show a disconnected notification. If it is running as a
-              // foreground
-              // service, IPNService will show a connected notification.
               if (state == Ipn.State.Stopped) {
                 notifyStatus(vpnRunning = false, hideDisconnectAction = hideDisconnectAction.value)
               }
               val vpnRunning = state == Ipn.State.Starting || state == Ipn.State.Running
               updateConnStatus(ableToStartVPN)
               QuickToggleService.setVPNRunning(vpnRunning)
-              // Update notification status when VPN is running
               if (vpnRunning) {
                 notifyStatus(
                     vpnRunning = true,
@@ -192,13 +229,23 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
                     exitNodeName = exitNodeName)
               }
             }
+      } catch (e: Exception) {
+        TSLog.e("App", "Notifier collect failed", e)
       }
     }
+    
     applicationScope.launch {
-      val hideDisconnectAction = MDMSettings.forceEnabled.flow.first()
+      try {
+        MDMSettings.forceEnabled.flow.first()
+      } catch (e: Exception) {
+        // ignore
+      }
     }
-    TSLog.init(this)
-    FeatureFlags.initialize(mapOf("enable_new_search" to true))
+    try {
+      FeatureFlags.initialize(mapOf("enable_new_search" to true))
+    } catch (e: Exception) {
+      // ignore
+    }
   }
   /**
    * Called when a SAF directory URI is available (either already stored or chosen). We must restart
@@ -253,15 +300,18 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
     return org.json.JSONArray(keys).toString()
   }
 
-  @Throws(IOException::class, GeneralSecurityException::class)
-  fun getEncryptedPrefs(): SharedPreferences {
+  private val _encryptedPrefs: SharedPreferences by lazy {
     val key = MasterKey.Builder(this).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-    return EncryptedSharedPreferences.create(
+    EncryptedSharedPreferences.create(
         this,
         "secret_shared_prefs",
         key,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
+  }
+
+  fun getEncryptedPrefs(): SharedPreferences {
+    return _encryptedPrefs
   }
 
   fun getStoredDirectoryUri(): Uri? {
@@ -371,8 +421,6 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
             false
         }
     }
-
-    private lateinit var keyStore: HardwareKeyStore;
 
     private fun getKeyStore(): HardwareKeyStore {
         if (hardwareAttestationKeySupported()) {
