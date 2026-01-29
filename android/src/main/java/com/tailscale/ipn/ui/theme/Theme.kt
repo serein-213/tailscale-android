@@ -21,6 +21,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -75,7 +76,7 @@ fun AppTheme(content: @Composable() () -> Unit) {
   @Suppress("deprecation") val systemUiController = rememberSystemUiController()
 
   DisposableEffect(systemUiController, useDarkTheme) {
-    systemUiController.setStatusBarColor(color = colors.surfaceContainer)
+    systemUiController.setStatusBarColor(color = colors.surfaceContainer, darkIcons = !useDarkTheme)
     systemUiController.setNavigationBarColor(color = Color.Black)
     onDispose {}
   }
@@ -101,7 +102,7 @@ private val LightColors =
         surfaceContainerLow = Color(0xFFF7F5F4), // gray-100
         surfaceContainer = Color(0xFFF7F5F4), // gray-100
         surfaceContainerHigh = Color(0xFFF7F5F4), // gray-100
-        surfaceContainerHighest = Color(0xFFF7F5F4), // gray-100
+        surfaceContainerHighest = Color(0xFFEDEBEA), // gray-200 (for search bar)
         surfaceVariant = Color(0xFFF7F5F4), // gray-100,
         onSurface = Color(0xFF232222), // gray-800
         onSurfaceVariant = Color(0xFF706E6D), // gray-500
@@ -143,23 +144,36 @@ private val DarkColors =
 
 private val DraculaColors =
     darkColorScheme(
-        primary = Color(0xFFBD93F9),
+        primary = Color(0xFFBD93F9), // purple
         onPrimary = Color(0xFF282A36),
         primaryContainer = Color(0xFF44475A),
         onPrimaryContainer = Color(0xFFF8F8F2),
-        secondary = Color(0xFF50FA7B),
+        secondary = Color(0xFF50FA7B), // green
         onSecondary = Color(0xFF282A36),
-        error = Color(0xFFFF5555),
+        secondaryContainer = Color(0xFF44475A),
+        onSecondaryContainer = Color(0xFF50FA7B),
+        tertiary = Color(0xFF8BE9FD), // cyan
+        onTertiary = Color(0xFF282A36),
+        tertiaryContainer = Color(0xFF44475A),
+        onTertiaryContainer = Color(0xFF8BE9FD),
+        error = Color(0xFFFF5555), // red
         onError = Color(0xFF282A36),
-        background = Color(0xFF282A36),
+        background = Color(0xFF282A36), // main background
         onBackground = Color(0xFFF8F8F2),
         surface = Color(0xFF282A36),
         onSurface = Color(0xFFF8F8F2),
-        surfaceVariant = Color(0xFF44475A),
-        onSurfaceVariant = Color(0xFFF8F8F2),
+        surfaceVariant = Color(0xFF44475A), // selection
+        onSurfaceVariant = Color(0xFFAEB9E0), // adjusted comment color for better legibility
         outline = Color(0xFF6272A4),
-        surfaceContainer = Color(0xFF282A36),
+        surfaceDim = Color(0xFF21222C),
+        surfaceBright = Color(0xFF6272A4),
+        surfaceContainerLowest = Color(0xFF21222C),
+        surfaceContainerLow = Color(0xFF21222C),
+        surfaceContainer = Color(0xFF343746), // Top bar & Status bar (lighter than background)
         surfaceContainerHigh = Color(0xFF44475A),
+        surfaceContainerHighest = Color(0xFF44475A), // Search Bar
+        inverseSurface = Color(0xFFF8F8F2),
+        inverseOnSurface = Color(0xFF282A36),
     )
 
 private val SolarizedDarkColors =
@@ -181,6 +195,7 @@ private val SolarizedDarkColors =
         outline = Color(0xFF586E75), // base01
         surfaceContainer = Color(0xFF002B36),
         surfaceContainerHigh = Color(0xFF073642),
+        surfaceContainerHighest = Color(0xFF073642), // base02
     )
 
 private val OLEDDarkColors =
@@ -196,12 +211,13 @@ private val OLEDDarkColors =
         outline = Color(0xFF706E6D),
         surfaceContainer = Color(0xFF000000),
         surfaceContainerHigh = Color(0xFF121212),
+        surfaceContainerHighest = Color(0xFF1C1C1C),
     )
 
 val ColorScheme.warning: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFFBB5504) // yellow-400
       } else {
         Color(0xFFD97917) // yellow-300
@@ -217,13 +233,25 @@ val ColorScheme.onWarningContainer: Color
   get() = Color(0xFF7E1E22) // orange-600
 
 val ColorScheme.success: Color
-  get() = Color(0xFF0A825D) // green-400
+  @Composable
+  get() =
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+        Color(0xFF81C784) // Lighter green for dark themes
+      } else {
+        Color(0xFF0A825D) // green-400
+      }
 
 val ColorScheme.onSuccess: Color
   get() = Color(0xFFFFFFFF) // white
 
 val ColorScheme.successContainer: Color
-  get() = Color(0xFFEFFEEC) // green-0
+  @Composable
+  get() =
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
+        Color(0xFF1B5E20)
+      } else {
+        Color(0xFFEFFEEC) // green-0
+      }
 
 val ColorScheme.onSuccessContainer: Color
   get() = Color(0xFF0E4B3B) // green-600
@@ -234,7 +262,7 @@ val ColorScheme.on: Color
 val ColorScheme.off: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFF444342) // gray-600
       } else {
         Color(0xFFD9D6D5) // gray-300
@@ -246,7 +274,7 @@ val ColorScheme.link: Color
 val ColorScheme.customError: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFF940821) // red-600
       } else {
         Color(0xFFB22D30) // red-500
@@ -255,7 +283,7 @@ val ColorScheme.customError: Color
 val ColorScheme.customErrorContainer: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFF760012) // red-700
       } else {
         Color(0xFF940821) // red-600
@@ -398,7 +426,7 @@ val ColorScheme.secondaryButton: ButtonColors
   @Composable
   get() {
     val defaults = ButtonDefaults.buttonColors()
-    if (isSystemInDarkTheme()) {
+    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
       return ButtonColors(
           containerColor = Color(0xFF4B70CC), // blue-500
           contentColor = Color(0xFFFFFFFF), // white
@@ -417,7 +445,7 @@ val ColorScheme.errorButton: ButtonColors
   @Composable
   get() {
     val defaults = ButtonDefaults.buttonColors()
-    if (isSystemInDarkTheme()) {
+    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
       return ButtonColors(
           containerColor = Color(0xFFB22D30), // red-500
           contentColor = Color(0xFFFFFFFF), // white
@@ -436,7 +464,7 @@ val ColorScheme.warningButton: ButtonColors
   @Composable
   get() {
     val defaults = ButtonDefaults.buttonColors()
-    if (isSystemInDarkTheme()) {
+    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
       return ButtonColors(
           containerColor = Color(0xFFD97917), // yellow-300
           contentColor = Color(0xFFFFFFFF), // white
@@ -454,7 +482,7 @@ val ColorScheme.warningButton: ButtonColors
 val ColorScheme.defaultTextColor: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color.White
       } else {
         Color.Black
@@ -463,7 +491,7 @@ val ColorScheme.defaultTextColor: Color
 val ColorScheme.logoBackground: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFFFFFFFF) // white
       } else {
         Color(0xFF1F1E1E)
@@ -472,7 +500,7 @@ val ColorScheme.logoBackground: Color
 val ColorScheme.standaloneLogoDotEnabled: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFFFFFFFF)
       } else {
         Color(0xFF000000)
@@ -481,7 +509,7 @@ val ColorScheme.standaloneLogoDotEnabled: Color
 val ColorScheme.standaloneLogoDotDisabled: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0x66FFFFFF)
       } else {
         Color(0x661F1E1E)
@@ -490,7 +518,7 @@ val ColorScheme.standaloneLogoDotDisabled: Color
 val ColorScheme.onBackgroundLogoDotEnabled: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0xFF141414)
       } else {
         Color(0xFFFFFFFF)
@@ -499,7 +527,7 @@ val ColorScheme.onBackgroundLogoDotEnabled: Color
 val ColorScheme.onBackgroundLogoDotDisabled: Color
   @Composable
   get() =
-      if (isSystemInDarkTheme()) {
+      if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
         Color(0x66141414)
       } else {
         Color(0x66FFFFFF)
@@ -509,7 +537,7 @@ val ColorScheme.exitNodeToggleButton: ButtonColors
   @Composable
   get() {
     val defaults = ButtonDefaults.buttonColors()
-    return if (isSystemInDarkTheme()) {
+    return if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) {
       ButtonColors(
           containerColor = Color(0xFF444342), // grey-600
           contentColor = Color(0xFFFFFFFF), // white
@@ -537,9 +565,9 @@ val ColorScheme.searchBarColors: TextFieldColors
         focusedTextColor = MaterialTheme.colorScheme.onSurface,
         unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
         disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         focusedBorderColor = Color.Transparent,
         unfocusedBorderColor = Color.Transparent)
   }
