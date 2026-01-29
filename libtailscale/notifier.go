@@ -19,15 +19,21 @@ func (app *App) WatchNotifications(mask int, cb NotificationCallback) Notificati
 	go app.backend.WatchNotifications(ctx, ipn.NotifyWatchOpt(mask), func() {}, func(notify *ipn.Notify) bool {
 		defer func() {
 			if p := recover(); p != nil {
-				log.Printf("panic in WatchNotifications %s: %s", p, debug.Stack())
-				panic(p)
+				log.Printf("panic in WatchNotifications callback: %v\n%s", p, debug.Stack())
 			}
 		}()
+
+		if notify == nil {
+			return true
+		}
 
 		b, err := json.Marshal(notify)
 		if err != nil {
 			log.Printf("error: WatchNotifications: marshal notify: %s", err)
 			return true
+		}
+		if cb == nil {
+			return false
 		}
 		err = cb.OnNotify(b)
 		if err != nil {
