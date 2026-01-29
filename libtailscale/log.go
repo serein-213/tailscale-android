@@ -27,20 +27,30 @@ import (
 // 1024 is the truncation limit from android/log.h, plus a \n.
 const logLineLimit = 1024
 
-var ID = filepath.Base(os.Args[0])
+var (
+	ID     string
+	logTag *C.char
+)
 
-var logTag = C.CString(ID)
+func init() {
+	if len(os.Args) > 0 {
+		ID = filepath.Base(os.Args[0])
+	} else {
+		ID = "tailscale"
+	}
+	logTag = C.CString(ID)
+}
 
 func initLogging(appCtx AppContext) {
 	// Android's logcat already includes timestamps.
 	log.SetFlags(log.Flags() &^ log.LstdFlags)
-	log.SetOutput(&androidLogWriter{
-		appCtx: appCtx,
-	})
+	// log.SetOutput(&androidLogWriter{
+	// 	appCtx: appCtx,
+	// })
 
 	// Redirect stdout and stderr to the Android logger.
-	logFd(os.Stdout.Fd())
-	logFd(os.Stderr.Fd())
+	// logFd(os.Stdout.Fd())
+	// logFd(os.Stderr.Fd())
 }
 
 type androidLogWriter struct {
@@ -48,7 +58,11 @@ type androidLogWriter struct {
 }
 
 func (w *androidLogWriter) Write(data []byte) (int, error) {
+	defer func() {
+		recover() // ignore panics during logging to avoid recursion
+	}()
 	n := 0
+// ... rest same ...
 	for len(data) > 0 {
 		msg := data
 		// Truncate the buffer
@@ -65,16 +79,17 @@ func (w *androidLogWriter) Write(data []byte) (int, error) {
 func logFd(fd uintptr) {
 	r, w, err := os.Pipe()
 	if err != nil {
-		panic(err)
+		log.Printf("error: logFd: os.Pipe: %v", err)
+		return
 	}
 	if err := syscall.Dup3(int(w.Fd()), int(fd), syscall.O_CLOEXEC); err != nil {
-		panic(err)
+		log.Printf("error: logFd: syscall.Dup3: %v", err)
+		return
 	}
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
 				log.Printf("panic in logFd %s: %s", p, debug.Stack())
-				panic(p)
 			}
 		}()
 
