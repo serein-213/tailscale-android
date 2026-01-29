@@ -55,6 +55,14 @@
     <string name="about_tailscale">About Tailscale</string>
     <string name="bug_report">Bug report</string>
     <string name="use_ts_dns">Use Tailscale DNS</string>
+    <string name="theme_setting">Theme</string>
+    <string name="theme_auto">Follow System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_monet">System Colors</string>
+    <string name="theme_dracula">Dracula</string>
+    <string name="theme_solarized">Solarized Dark</string>
+    <string name="theme_oled">OLED Black</string>
     <string name="internal_debug_options">Internal debug options</string>
 
     <!-- Strings for the main screen -->

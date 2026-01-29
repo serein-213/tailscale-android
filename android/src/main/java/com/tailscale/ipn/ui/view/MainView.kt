@@ -763,7 +763,7 @@ fun PromptForMissingPermissions(viewModel: MainViewModel) {
 @Composable
 fun Search(
     onSearchBarClick: () -> Unit, // Callback for navigating to SearchView
-    backgroundColor: Color = MaterialTheme.colorScheme.background, // Default background color
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest, // Use distinct token
 ) {
   // Prevent multiple taps
   var isNavigating by remember { mutableStateOf(false) }
