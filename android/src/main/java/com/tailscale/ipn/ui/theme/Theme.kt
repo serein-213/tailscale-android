@@ -26,14 +26,41 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import android.os.Build
+
 @Composable
-fun AppTheme(useDarkTheme: Boolean = isSystemInDarkTheme(), content: @Composable() () -> Unit) {
-  val colors =
-      if (useDarkTheme) {
-        DarkColors
+fun AppTheme(content: @Composable() () -> Unit) {
+  val themeMode by ThemeConfig.theme.collectAsState()
+  val context = LocalContext.current
+  val systemInDarkTheme = isSystemInDarkTheme()
+  
+  val useDarkTheme = when (themeMode) {
+    AppThemeMode.SYSTEM -> systemInDarkTheme
+    AppThemeMode.LIGHT -> false
+    AppThemeMode.DARK, AppThemeMode.DRACULA, AppThemeMode.SOLARIZED, AppThemeMode.OLED -> true
+    AppThemeMode.MONET -> systemInDarkTheme
+  }
+
+  val colors = when (themeMode) {
+    AppThemeMode.SYSTEM -> if (systemInDarkTheme) DarkColors else LightColors
+    AppThemeMode.LIGHT -> LightColors
+    AppThemeMode.DARK -> DarkColors
+    AppThemeMode.DRACULA -> DraculaColors
+    AppThemeMode.SOLARIZED -> SolarizedDarkColors
+    AppThemeMode.OLED -> OLEDDarkColors
+    AppThemeMode.MONET -> {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (systemInDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
       } else {
-        LightColors
+        if (systemInDarkTheme) DarkColors else LightColors
       }
+    }
+  }
 
   val typography =
       Typography(
@@ -112,6 +139,63 @@ private val DarkColors =
         inverseSurface = Color(0xFFEDEBEA), // gray-200
         inverseOnSurface = Color(0xFF000000), // black
         scrim = Color(0xAA000000), // black
+    )
+
+private val DraculaColors =
+    darkColorScheme(
+        primary = Color(0xFFBD93F9),
+        onPrimary = Color(0xFF282A36),
+        primaryContainer = Color(0xFF44475A),
+        onPrimaryContainer = Color(0xFFF8F8F2),
+        secondary = Color(0xFF50FA7B),
+        onSecondary = Color(0xFF282A36),
+        error = Color(0xFFFF5555),
+        onError = Color(0xFF282A36),
+        background = Color(0xFF282A36),
+        onBackground = Color(0xFFF8F8F2),
+        surface = Color(0xFF282A36),
+        onSurface = Color(0xFFF8F8F2),
+        surfaceVariant = Color(0xFF44475A),
+        onSurfaceVariant = Color(0xFFF8F8F2),
+        outline = Color(0xFF6272A4),
+        surfaceContainer = Color(0xFF282A36),
+        surfaceContainerHigh = Color(0xFF44475A),
+    )
+
+private val SolarizedDarkColors =
+    darkColorScheme(
+        primary = Color(0xFF268BD2), // blue
+        onPrimary = Color(0xFFFDF6E3), // base3
+        primaryContainer = Color(0xFF073642), // base02
+        onPrimaryContainer = Color(0xFF93A1A1), // base1
+        secondary = Color(0xFF2AA198), // cyan
+        onSecondary = Color(0xFFFDF6E3),
+        error = Color(0xFFDC322F), // red
+        onError = Color(0xFFFDF6E3),
+        background = Color(0xFF002B36), // base03
+        onBackground = Color(0xFF839496), // base0
+        surface = Color(0xFF073642), // base02
+        onSurface = Color(0xFF93A1A1), // base1
+        surfaceVariant = Color(0xFF073642),
+        onSurfaceVariant = Color(0xFF839496),
+        outline = Color(0xFF586E75), // base01
+        surfaceContainer = Color(0xFF002B36),
+        surfaceContainerHigh = Color(0xFF073642),
+    )
+
+private val OLEDDarkColors =
+    darkColorScheme(
+        primary = Color(0xFF3E5DB3), // same as dark
+        onPrimary = Color(0xFFFFFFFF),
+        background = Color(0xFF000000),
+        onBackground = Color(0xFFFFFFFF),
+        surface = Color(0xFF000000),
+        onSurface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFF121212),
+        onSurfaceVariant = Color(0xFFAFACAB),
+        outline = Color(0xFF706E6D),
+        surfaceContainer = Color(0xFF000000),
+        surfaceContainerHigh = Color(0xFF121212),
     )
 
 val ColorScheme.warning: Color
