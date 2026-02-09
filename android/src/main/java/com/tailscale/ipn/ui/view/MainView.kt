@@ -701,6 +701,27 @@ fun PeerList(
                         style =
                             MaterialTheme.typography.bodyMedium.copy(
                                 lineHeight = MaterialTheme.typography.titleMedium.lineHeight))
+                  },
+                  trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      peer.Tags?.let { allTags ->
+                        val displayTags = allTags.take(3)
+                        val hasMore = allTags.size > 3
+
+                        displayTags.forEach { fullTag ->
+                          val tagName = fullTag.removePrefix("tag:")
+                          AnimatedTagItem(name = tagName)
+                          Spacer(modifier = Modifier.size(4.dp))
+                        }
+
+                        if (hasMore) {
+                          Text(
+                              text = "+${allTags.size - 3}",
+                              style = MaterialTheme.typography.labelSmall,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                      }
+                    }
                   })
             }
           }
