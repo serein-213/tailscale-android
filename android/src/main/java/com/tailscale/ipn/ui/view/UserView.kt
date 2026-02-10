@@ -62,15 +62,20 @@ fun UserView(
           },
           supportingContent = {
             Column {
-              AutoResizingText(
-                  text = profile.NetworkProfile?.tailnetNameForDisplay() ?: "",
-                  style = MaterialTheme.typography.bodyMedium.short,
-                  minFontSize = MaterialTheme.typography.minTextSize,
-                  overflow = TextOverflow.Ellipsis)
+              val tailnetName = profile.NetworkProfile?.tailnetNameForDisplay() ?: ""
+              val hostname = profile.customControlServerHostname()
 
-              profile.customControlServerHostname()?.let {
+              if (tailnetName.isNotEmpty()) {
                 AutoResizingText(
-                    text = it,
+                    text = tailnetName,
+                    style = MaterialTheme.typography.bodyMedium.short,
+                    minFontSize = MaterialTheme.typography.minTextSize,
+                    overflow = TextOverflow.Ellipsis)
+              }
+
+              if (hostname != null && hostname != tailnetName) {
+                AutoResizingText(
+                    text = hostname,
                     style = MaterialTheme.typography.bodyMedium.short,
                     minFontSize = MaterialTheme.typography.minTextSize,
                     overflow = TextOverflow.Ellipsis)

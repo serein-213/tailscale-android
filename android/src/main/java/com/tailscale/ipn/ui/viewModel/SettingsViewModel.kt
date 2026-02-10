@@ -24,6 +24,7 @@ data class SettingsNav(
     val onNavigateToUserSwitcher: () -> Unit,
     val onNavigateToPermissions: () -> Unit,
     val onNavigateToThemeSettings: () -> Unit,
+    val onNavigateToCustomControl: () -> Unit,
     val onNavigateBackHome: () -> Unit,
     val onBackToSettings: () -> Unit,
 )
