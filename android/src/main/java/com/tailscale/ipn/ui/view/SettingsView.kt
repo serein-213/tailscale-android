@@ -31,8 +31,11 @@ import com.tailscale.ipn.mdm.AlwaysNeverUserDecides
 import com.tailscale.ipn.mdm.MDMSettings
 import com.tailscale.ipn.mdm.ShowHide
 import com.tailscale.ipn.ui.Links
+import com.tailscale.ipn.ui.theme.AppThemeMode
+import com.tailscale.ipn.ui.theme.ThemeConfig
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.theme.listItem
+import androidx.compose.material3.RadioButton
 import com.tailscale.ipn.ui.util.AndroidTVUtil
 import com.tailscale.ipn.ui.util.AndroidTVUtil.isAndroidTV
 import com.tailscale.ipn.ui.util.AppVersion
@@ -109,6 +112,8 @@ fun SettingsView(
           if (!AndroidTVUtil.isAndroidTV()) {
             Lists.ItemDivider()
             Setting.Text(R.string.permissions, onClick = settingsNav.onNavigateToPermissions)
+            Lists.ItemDivider()
+            Setting.Text(R.string.theme_setting, onClick = settingsNav.onNavigateToThemeSettings)
           }
 
           managedByOrganization.value?.let {
@@ -117,9 +122,6 @@ fun SettingsView(
                 title = stringResource(R.string.managed_by_orgName, it),
                 onClick = settingsNav.onNavigateToManagedBy)
           }
-
-          // Lists.SectionDivider()
-          // Setting.Text(R.string.bug_report, onClick = settingsNav.onNavigateToBugReport)
 
           Lists.ItemDivider()
           Setting.Text(
@@ -219,5 +221,5 @@ fun SettingsPreview() {
   vm.tailNetLockEnabled.set(true)
   vm.isAdmin.set(true)
   vm.managedByOrganization.set("Tails and Scales Inc.")
-  SettingsView(SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}), vm)
+  SettingsView(SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}), vm)
 }
