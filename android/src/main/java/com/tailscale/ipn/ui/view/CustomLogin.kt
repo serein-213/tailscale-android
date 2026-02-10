@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.theme.listItem
+import com.tailscale.ipn.ui.util.Lists
+import com.tailscale.ipn.ui.util.ServerConfig
 import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.ui.viewModel.LoginWithAuthKeyViewModel
 import com.tailscale.ipn.ui.viewModel.LoginWithCustomControlURLViewModel
@@ -58,20 +62,114 @@ fun LoginWithCustomControlURLView(
         )
       }) { innerPadding ->
         val error by viewModel.errorDialog.collectAsState()
-        val strings =
-            LoginViewStrings(
-                title = stringResource(id = R.string.custom_control_menu),
-                explanation = stringResource(id = R.string.custom_control_menu_desc),
-                inputTitle = stringResource(id = R.string.custom_control_url_title),
-                placeholder = stringResource(id = R.string.custom_control_placeholder),
-            )
+        val user by viewModel.loggedInUser.collectAsState()
+        val customAdminUrl by ServerConfig.customAdminUrl.collectAsState()
+
+        var controlUrlText by remember { mutableStateOf(user?.ControlURL ?: "") }
+        var adminUrlText by remember { mutableStateOf(customAdminUrl ?: "") }
 
         error?.let { ErrorDialog(type = it, action = { viewModel.errorDialog.set(null) }) }
 
-        LoginView(
-            innerPadding = innerPadding,
-            strings = strings,
-            onSubmitAction = { viewModel.setControlURL(it, onNavigateHome) })
+        Column(
+            modifier =
+                Modifier.padding(innerPadding)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .background(MaterialTheme.colorScheme.surface)) {
+              // Section 1: Custom Control Server
+              ListItem(
+                  colors = MaterialTheme.colorScheme.listItem,
+                  headlineContent = { Text(text = stringResource(id = R.string.custom_control_menu)) },
+                  supportingContent = {
+                    Text(text = stringResource(id = R.string.custom_control_menu_desc))
+                  })
+
+              ListItem(
+                  colors = MaterialTheme.colorScheme.listItem,
+                  headlineContent = {
+                    Text(text = stringResource(id = R.string.custom_control_url_title))
+                  },
+                  supportingContent = {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        value = controlUrlText,
+                        onValueChange = { controlUrlText = it },
+                        placeholder = {
+                          Text(
+                              stringResource(id = R.string.custom_control_placeholder),
+                              style = MaterialTheme.typography.bodySmall)
+                        },
+                        keyboardOptions =
+                            KeyboardOptions(
+                                capitalization = KeyboardCapitalization.None,
+                                imeAction = ImeAction.Go),
+                        keyboardActions =
+                            KeyboardActions(onGo = { viewModel.setControlURL(controlUrlText, onNavigateHome) }))
+                  })
+
+              ListItem(
+                  colors = MaterialTheme.colorScheme.listItem,
+                  headlineContent = {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                      Button(
+                          onClick = { viewModel.setControlURL(controlUrlText, onNavigateHome) },
+                          content = { Text(stringResource(id = R.string.add_account_short)) })
+                    }
+                  })
+
+              Lists.SectionDivider()
+
+              // Section 2: Admin Console URL
+              ListItem(
+                  colors = MaterialTheme.colorScheme.listItem,
+                  headlineContent = {
+                    Text(text = stringResource(id = R.string.custom_admin_console_url))
+                  },
+                  supportingContent = {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        value = adminUrlText,
+                        onValueChange = { adminUrlText = it },
+                        placeholder = {
+                          Text(
+                              stringResource(id = R.string.custom_admin_console_placeholder),
+                              style = MaterialTheme.typography.bodySmall)
+                        },
+                        keyboardOptions =
+                            KeyboardOptions(
+                                capitalization = KeyboardCapitalization.None,
+                                imeAction = ImeAction.Done),
+                        keyboardActions =
+                            KeyboardActions(
+                                onDone = {
+                                  ServerConfig.setCustomAdminUrl(adminUrlText)
+                                  backToSettings()
+                                }))
+                  })
+
+              ListItem(
+                  colors = MaterialTheme.colorScheme.listItem,
+                  headlineContent = {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                      Button(
+                          onClick = {
+                            ServerConfig.setCustomAdminUrl(adminUrlText)
+                            backToSettings()
+                          },
+                          content = { Text(stringResource(id = R.string.save)) })
+                    }
+                  })
+            }
       }
 }
 
@@ -97,7 +195,7 @@ fun LoginWithAuthKeyView(
                 inputTitle = stringResource(id = R.string.auth_key_input_title),
                 placeholder = stringResource(id = R.string.auth_key_placeholder),
             )
-        // Show the error overlay if need be
+
         error?.let { ErrorDialog(type = it, action = { viewModel.errorDialog.set(null) }) }
 
         LoginView(
