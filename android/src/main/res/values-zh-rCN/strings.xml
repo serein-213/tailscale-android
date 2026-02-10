@@ -51,6 +51,14 @@
     <string name="about_tailscale">关于 Tailscale</string>
     <string name="bug_report">错误报告</string>
     <string name="use_ts_dns">使用 Tailscale DNS</string>
+    <string name="theme_setting">主题</string>
+    <string name="theme_auto">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_monet">系统取色</string>
+    <string name="theme_dracula">吸血鬼 (Dracula)</string>
+    <string name="theme_solarized">经典暗青 (Solarized)</string>
+    <string name="theme_oled">纯黑 (OLED)</string>
     <string name="internal_debug_options">内部调试选项</string>
 
     <!-- Strings for the main screen -->
