@@ -376,7 +376,7 @@ docker-remove-shell-image: ## Removes all docker shell image
 .PHONY: clean
 clean: ## Remove build artifacts. Does not purge docker build envs. Use dockerRemoveEnv for that.
 	@echo "Cleaning up old build artifacts"
-	-rm -rf android/build $(DEBUG_APK) $(RELEASE_AAB) $(RELEASE_TV_AAB) $(LIBTAILSCALE_AAR) android/libs *.apk *.aab
+	-rm -rf android/build $(DEBUG_APK) $(RELEASE_AAB) $(RELEASE_TV_AAB) $(LIBTAILSCALE_AAR) android/libs *.apk *.aab *.idsig
 	@echo "Cleaning cached toolchain"
 	-rm -rf $(HOME)/.cache/tailscale-go{,.extracted}
 	-pkill -f gradle
