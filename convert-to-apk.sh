@@ -82,6 +82,10 @@ convert_aab_to_apk() {
     fi
     
     rm "$apks_tmp"
+    # Cleanup residual V4 signature index files (.idsig)
+    if [ -f "${output_apk}.idsig" ]; then
+        rm "${output_apk}.idsig"
+    fi
     echo "Successfully created: $output_apk"
 }
 

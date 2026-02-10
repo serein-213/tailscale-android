@@ -216,6 +216,10 @@
     <string name="the_tailnet_policy_allows_the_organization_to_specify_a_tailnet">Tailnet 策略允许组织指定一个 tailnet，其身份提供商将用于登录页面。如果策略值以 required: 为前缀，Tailscale 将强制使用该身份提供商，并且不允许使用其他任何方式登录。</string>
     <string name="required_suggested_tailnet">必需/建议的 Tailnet</string>
     <string name="custom_control_server_url">自定义控制服务器 URL</string>
+    <string name="custom_admin_console_url">管理控制台 URL</string>
+    <string name="custom_admin_console_placeholder">https://admin.your-headscale.com</string>
+    <string name="custom_control_settings">自定义服务器设置</string>
+    <string name="save">保存</string>
     <string name="use_this_field_to_specify_a_custom_coordination_server_url_such_as_a_headscale_instance">使用此字段指定自定义协调服务器 URL，例如 Headscale 实例。</string>
     <string name="hidden_network_devices">隐藏的网络设备</string>
     <string name="hides_the_specified_categories_of_network_devices_from_the_devices_list_in_the_client">从客户端的设备列表中隐藏指定类别的网络设备。</string>

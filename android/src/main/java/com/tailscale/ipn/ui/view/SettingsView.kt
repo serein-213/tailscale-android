@@ -4,10 +4,18 @@
 package com.tailscale.ipn.ui.view
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -15,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
@@ -24,6 +33,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tailscale.ipn.BuildConfig
 import com.tailscale.ipn.R
@@ -36,6 +46,7 @@ import com.tailscale.ipn.ui.theme.ThemeConfig
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.theme.listItem
 import androidx.compose.material3.RadioButton
+import com.tailscale.ipn.App
 import com.tailscale.ipn.ui.util.AndroidTVUtil
 import com.tailscale.ipn.ui.util.AndroidTVUtil.isAndroidTV
 import com.tailscale.ipn.ui.util.AppVersion
@@ -44,6 +55,7 @@ import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.ui.viewModel.AppViewModel
 import com.tailscale.ipn.ui.viewModel.SettingsNav
 import com.tailscale.ipn.ui.viewModel.SettingsViewModel
+import kotlinx.coroutines.flow.emptyFlow
 
 @Composable
 fun SettingsView(
@@ -76,7 +88,11 @@ fun SettingsView(
 
           if (isAdmin && !isAndroidTV()) {
             Lists.ItemDivider()
-            AdminTextView { handler.openUri(Links.ADMIN_URL) }
+            AdminTextView(
+                onNavigateToAdminConsole = {
+                  handler.openUri(com.tailscale.ipn.ui.util.ServerConfig.getAdminUrl())
+                },
+                onNavigateToSettings = settingsNav.onNavigateToCustomControl)
           }
 
           Lists.SectionDivider()
@@ -196,11 +212,12 @@ object Setting {
 }
 
 @Composable
-fun AdminTextView(onNavigateToAdminConsole: () -> Unit) {
+fun AdminTextView(onNavigateToAdminConsole: () -> Unit, onNavigateToSettings: () -> Unit) {
   val adminStr = buildAnnotatedString {
     append(stringResource(id = R.string.settings_admin_prefix))
 
-    pushStringAnnotation(tag = "link", annotation = Links.ADMIN_URL)
+    pushStringAnnotation(
+        tag = "link", annotation = com.tailscale.ipn.ui.util.ServerConfig.getAdminUrl())
     withStyle(
         style =
             SpanStyle(
@@ -210,7 +227,25 @@ fun AdminTextView(onNavigateToAdminConsole: () -> Unit) {
         }
   }
 
-  Lists.InfoItem(adminStr, onClick = onNavigateToAdminConsole)
+  val style =
+      MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+  ListItem(
+      colors = MaterialTheme.colorScheme.listItem,
+      headlineContent = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          ClickableText(text = adminStr, style = style, onClick = { onNavigateToAdminConsole() })
+          IconButton(
+              modifier = Modifier.padding(start = 4.dp).size(24.dp),
+              onClick = onNavigateToSettings) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+          }
+        }
+      })
 }
 
 @Preview
@@ -221,5 +256,8 @@ fun SettingsPreview() {
   vm.tailNetLockEnabled.set(true)
   vm.isAdmin.set(true)
   vm.managedByOrganization.set("Tails and Scales Inc.")
-  SettingsView(SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}), vm)
+  SettingsView(
+      settingsNav = SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
+      viewModel = vm,
+      appViewModel = AppViewModel(App.get(), emptyFlow<Unit>()))
 }
