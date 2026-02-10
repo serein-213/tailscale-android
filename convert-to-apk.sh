@@ -62,6 +62,20 @@ convert_aab_to_apk() {
         echo "Aligning $output_apk to 16KB boundaries..."
         ./scripts/align-apk.sh "${output_apk}.unaligned" "$output_apk"
         rm "${output_apk}.unaligned"
+        
+        # 4. Re-sign the APK (zipalign breaks existing signatures)
+        echo "Re-signing $output_apk..."
+        APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+        if [ -n "$APKSIGNER" ]; then
+            $APKSIGNER sign \
+                --ks "$JKS_PATH" \
+                --ks-pass pass:"$JKS_PASSWORD" \
+                --ks-key-alias tailscale \
+                --key-pass pass:"$JKS_PASSWORD" \
+                "$output_apk"
+        else
+            echo "Warning: apksigner not found, APK might not be installable."
+        fi
     else
         mv "${output_apk}.unaligned" "$output_apk"
         echo "Warning: scripts/align-apk.sh not found, skipping 16KB alignment."

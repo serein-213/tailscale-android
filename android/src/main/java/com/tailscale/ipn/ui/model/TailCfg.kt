@@ -83,6 +83,7 @@ class Tailcfg {
       var Online: Boolean? = null,
       var Capabilities: List<String>? = null,
       var CapMap: Map<String, JsonElement?>? = null,
+      var Tags: List<String>? = null,
       var ComputedName: String?,
       var ComputedNameWithHost: String?
   ) {
@@ -140,7 +141,11 @@ class Tailcfg {
 
     @Composable
     fun connectedColor(nm: Netmap.NetworkMap?) =
-        if (connectedOrSelfNode(nm)) MaterialTheme.colorScheme.on else MaterialTheme.colorScheme.off
+        if (connectedOrSelfNode(nm)) MaterialTheme.colorScheme.on
+        else MaterialTheme.colorScheme.off
+
+    val tagsString: String?
+      get() = Tags?.joinToString(", ") { it.removePrefix("tag:") }
 
     val nameWithoutTrailingDot = Name.trimEnd('.')
 
@@ -158,6 +163,11 @@ class Tailcfg {
         if (Hostinfo.OS?.isNotEmpty() == true) {
           result.add(
               PeerSettingInfo(R.string.os, ComposableStringFormatter(Hostinfo.OS!!)),
+          )
+        }
+        if (Hostinfo.IPNVersion?.isNotEmpty() == true) {
+          result.add(
+              PeerSettingInfo(R.string.version, ComposableStringFormatter(Hostinfo.IPNVersion!!)),
           )
         }
         if (keyDoesNotExpire) {
