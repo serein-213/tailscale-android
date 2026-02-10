@@ -135,7 +135,9 @@ fun MainView(
   val healthIcon by viewModel.healthIcon.collectAsState()
 
   LoadingIndicator.Wrap {
-    Scaffold(contentWindowInsets = WindowInsets.Companion.statusBars) { paddingInsets ->
+    Scaffold(
+        contentWindowInsets = WindowInsets.Companion.statusBars,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer) { paddingInsets ->
       Column(
           modifier = Modifier.fillMaxWidth().padding(paddingInsets),
           verticalArrangement = Arrangement.Center) {
@@ -701,6 +703,27 @@ fun PeerList(
                         style =
                             MaterialTheme.typography.bodyMedium.copy(
                                 lineHeight = MaterialTheme.typography.titleMedium.lineHeight))
+                  },
+                  trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      peer.Tags?.let { allTags ->
+                        val displayTags = allTags.take(3)
+                        val hasMore = allTags.size > 3
+
+                        displayTags.forEach { fullTag ->
+                          val tagName = fullTag.removePrefix("tag:")
+                          AnimatedTagItem(name = tagName)
+                          Spacer(modifier = Modifier.size(4.dp))
+                        }
+
+                        if (hasMore) {
+                          Text(
+                              text = "+${allTags.size - 3}",
+                              style = MaterialTheme.typography.labelSmall,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                      }
+                    }
                   })
             }
           }
@@ -766,7 +789,7 @@ fun PromptForMissingPermissions(viewModel: MainViewModel) {
 @Composable
 fun Search(
     onSearchBarClick: () -> Unit, // Callback for navigating to SearchView
-    backgroundColor: Color = MaterialTheme.colorScheme.background, // Default background color
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest, // Use distinct token
 ) {
   // Prevent multiple taps
   var isNavigating by remember { mutableStateOf(false) }
