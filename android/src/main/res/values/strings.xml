@@ -143,6 +143,8 @@
     <string name="invalidAuthKey">The provided auth key is not in the correct format.</string>
     <string name="invalidAuthKeyTitle">Invalid key</string>
     <string name="custom_control_url_title">Custom control server URL</string>
+    <string name="custom_admin_console_url">Custom admin console URL</string>
+    <string name="custom_admin_console_placeholder" translatable="false">https://my.headscale.admin.com</string>
     <string name="auth_key_input_title">Auth key</string>
     <string name="delete_tailnet">Delete tailnet</string>
     <string name="contact_support">Contact support</string>
@@ -224,6 +226,8 @@
     <string name="required_suggested_tailnet">Required/Suggested Tailnet</string>
     <string name="custom_control_server_url">Custom control server URL</string>
     <string name="use_this_field_to_specify_a_custom_coordination_server_url_such_as_a_headscale_instance">Use this field to specify a custom coordination server URL, such as a Headscale instance.</string>
+    <string name="custom_control_settings">Custom Server Settings</string>
+    <string name="save">Save</string>
     <string name="hidden_network_devices">Hidden network devices</string>
     <string name="hides_the_specified_categories_of_network_devices_from_the_devices_list_in_the_client">Hides the specified categories of network devices from the devices list in the client.</string>
     <string name="allow_lan_access_when_using_an_exit_node">Allow LAN access when using an exit node</string>

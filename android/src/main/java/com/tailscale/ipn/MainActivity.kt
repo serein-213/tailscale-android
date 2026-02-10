@@ -312,6 +312,9 @@ class MainActivity : ComponentActivity() {
                           onNavigateToUserSwitcher = { navController.navigate("userSwitcher") },
                           onNavigateToPermissions = { navController.navigate("permissions") },
                           onNavigateToThemeSettings = { navController.navigate("themeSettings") },
+                          onNavigateToCustomControl = {
+                            navController.navigate("loginWithCustomControl")
+                          },
                           onBackToSettings = backTo("settings"),
                           onNavigateBackHome = backTo("main"))
                   val exitNodePickerNav =
@@ -403,7 +406,7 @@ class MainActivity : ComponentActivity() {
                   }
                   composable("loginWithCustomControl") {
                     LoginWithCustomControlURLView(
-                        onNavigateHome = backTo("main"), backTo("userSwitcher"))
+                        onNavigateHome = backTo("main"), backToSettings = { navController.popBackStack() })
                   }
                 }
             if (isIntroScreenViewedSet()) {
@@ -476,17 +479,13 @@ class MainActivity : ComponentActivity() {
       if (this::navController.isInitialized) {
         val previousEntry = navController.previousBackStackEntry
         TSLog.d("MainActivity", "onNewIntent: previousBackStackEntry = $previousEntry")
-        if (this::navController.isInitialized) {
-          val previousEntry = navController.previousBackStackEntry
-          TSLog.d("MainActivity", "onNewIntent: previousBackStackEntry = $previousEntry")
-          if (previousEntry != null) {
-            navController.popBackStack(route = "main", inclusive = false)
-          } else {
-            TSLog.e(
-                "MainActivity",
-                "onNewIntent: No previous back stack entry, navigating directly to 'main'")
-            navController.navigate("main") { popUpTo("main") { inclusive = true } }
-          }
+        if (previousEntry != null) {
+          navController.popBackStack(route = "main", inclusive = false)
+        } else {
+          TSLog.e(
+              "MainActivity",
+              "onNewIntent: No previous back stack entry, navigating directly to 'main'")
+          navController.navigate("main") { popUpTo("main") { inclusive = true } }
         }
       }
     }
