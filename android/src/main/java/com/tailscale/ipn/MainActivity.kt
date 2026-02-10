@@ -312,6 +312,9 @@ class MainActivity : ComponentActivity() {
                           onNavigateToUserSwitcher = { navController.navigate("userSwitcher") },
                           onNavigateToPermissions = { navController.navigate("permissions") },
                           onNavigateToThemeSettings = { navController.navigate("themeSettings") },
+                          onNavigateToCustomControl = {
+                            navController.navigate("loginWithCustomControl")
+                          },
                           onBackToSettings = backTo("settings"),
                           onNavigateBackHome = backTo("main"))
                   val exitNodePickerNav =
@@ -403,7 +406,7 @@ class MainActivity : ComponentActivity() {
                   }
                   composable("loginWithCustomControl") {
                     LoginWithCustomControlURLView(
-                        onNavigateHome = backTo("main"), backTo("userSwitcher"))
+                        onNavigateHome = backTo("main"), backToSettings = { navController.popBackStack() })
                   }
                 }
             if (isIntroScreenViewedSet()) {
