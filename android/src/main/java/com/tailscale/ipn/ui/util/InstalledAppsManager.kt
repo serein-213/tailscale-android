@@ -7,7 +7,7 @@ import android.Manifest
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 
-data class InstalledApp(val name: String, val packageName: String)
+data class InstalledApp(val name: String, val packageName: String, val isSystemApp: Boolean)
 
 class InstalledAppsManager(
     val packageManager: PackageManager,
@@ -17,9 +17,12 @@ class InstalledAppsManager(
         .getInstalledApplications(PackageManager.GET_META_DATA)
         .filter(appIsIncluded)
         .map {
+          val isSystem = (it.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                         (it.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
           InstalledApp(
               name = it.loadLabel(packageManager).toString(),
               packageName = it.packageName,
+              isSystemApp = isSystem
           )
         }
         .sortedBy { it.name }
