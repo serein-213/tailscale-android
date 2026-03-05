@@ -313,9 +313,9 @@
     <string name="pingFailed">Ping 失败</string>
     <string name="an_unknown_error_occurred_please_try_again">发生未知错误。请重试。</string>
     <string name="request_timed_out_make_sure_that_is_online">请求超时。请确保“%1$s”在线。</string>
-    <string name="split_tunneling">应用拆分隧道</string>
-    <string name="exclude_certain_apps_from_using_tailscale">排除某些应用使用 Tailscale</string>
-    <string name="selected_apps_will_access_the_internet_directly_without_using_tailscale">在此处选择的应用将直接访问互联网，而不使用 Tailscale。</string>
+    <string name="split_tunneling">应用分流</string>
+    <string name="exclude_certain_apps_from_using_tailscale">排除特定的应用使用 Tailscale</string>
+    <string name="selected_apps_will_access_the_internet_directly_without_using_tailscale">勾选的应用将绕过 Tailscale，直接访问互联网。</string>
     <string name="count_excluded_apps">已排除的应用 (%1$s)</string>
     <string name="certain_apps_are_not_routed_via_tailscale">在此设备上，某些应用不通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
     <string name="only_specific_apps_are_routed_via_tailscale">在此设备上，只有特定应用通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
