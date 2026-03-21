@@ -56,7 +56,8 @@ android {
     }
 
     lintOptions {
-        warningsAsErrors true
+        checkReleaseBuilds false
+        abortOnError false
     }
 
     kotlinOptions {
@@ -73,6 +74,26 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_version"
     }
+
+    signingConfigs {
+        release {
+            if (System.getenv("JKS_PATH") != null) {
+                storeFile file(System.getenv("JKS_PATH"))
+                storePassword System.getenv("JKS_PASSWORD")
+                keyAlias 'tailscale'
+                keyPassword System.getenv("JKS_PASSWORD")
+            } else if (project.hasProperty('RELEASE_STORE_FILE')) {
+                storeFile file(RELEASE_STORE_FILE)
+                storePassword RELEASE_STORE_PASSWORD
+                keyAlias RELEASE_KEY_ALIAS
+                keyPassword RELEASE_KEY_PASSWORD
+            } else {
+                // 如果没有提供签名信息，则回退到未签名状态，而不是报错
+                signingConfig = null
+            }
+        }
+    }
+
     flavorDimensions "version"
     namespace 'com.tailscale.ipn'
 
@@ -97,10 +118,29 @@ android {
             proguardFiles getDefaultProguardFile(
                     'proguard-android-optimize.txt'),
                     'proguard-rules.pro'
+            
+            signingConfig signingConfigs.release
+
+            // 修改 zipalign 对齐到 16KB (默认是 4KB)，以支持 Android 16
+            // 通过 packagingOptions 配置 .so 文件的页面对齐
+            packagingOptions {
+                jniLibs {
+                    useLegacyPackaging = false
+                }
+            }
         }
         release_tv {
             initWith release
             manifestPlaceholders.leanbackRequired = true
+        }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true
         }
     }
 

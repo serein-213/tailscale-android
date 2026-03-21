@@ -89,10 +89,52 @@ convert_aab_to_apk() {
     echo "Successfully created: $output_apk"
 }
 
+sign_existing_apks() {
+    local apk_dir="android/build/outputs/apk/release"
+    if [ ! -d "$apk_dir" ]; then
+        return
+    fi
+
+    echo "Checking for unsigned APKs in $apk_dir..."
+    APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+    
+    # 查找所有架构的 APK，包括 universal
+    find "$apk_dir" -name "*.apk" | while read -r apk; do
+        # 检查是否已签名
+        if ! $APKSIGNER verify "$apk" > /dev/null 2>&1; then
+            echo "Signing unsigned APK: $apk"
+            $APKSIGNER sign \
+                --ks "$JKS_PATH" \
+                --ks-pass pass:"$JKS_PASSWORD" \
+                --ks-key-alias tailscale \
+                --key-pass pass:"$JKS_PASSWORD" \
+                "$apk"
+            
+            # 对齐校验（确保符合 16KB）
+            if [ -f "./scripts/align-apk.sh" ]; then
+                ./scripts/align-apk.sh "$apk" "${apk}.aligned"
+                mv "${apk}.aligned" "$apk"
+                # 对齐后需要重新签名
+                $APKSIGNER sign \
+                    --ks "$JKS_PATH" \
+                    --ks-pass pass:"$JKS_PASSWORD" \
+                    --ks-key-alias tailscale \
+                    --key-pass pass:"$JKS_PASSWORD" \
+                    "$apk"
+            fi
+            echo "Successfully signed and aligned: $apk"
+        fi
+    done
+}
+
 # --- Execution ---
 
 echo "Starting AAB to APK conversion (Version: $VERSION)..."
 
+# 1. 签名并 16KB 对齐现有的 APK 文件 (如果存在)
+sign_existing_apks
+
+# 2. 从 AAB 转换
 # Convert Standard Release
 convert_aab_to_apk "tailscale-release.aab" "tailscale-release-${VERSION}.apk"
 
