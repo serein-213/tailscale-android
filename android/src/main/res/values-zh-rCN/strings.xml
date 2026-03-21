@@ -314,13 +314,20 @@
     <string name="an_unknown_error_occurred_please_try_again">发生未知错误。请重试。</string>
     <string name="request_timed_out_make_sure_that_is_online">请求超时。请确保“%1$s”在线。</string>
     <string name="split_tunneling">应用分流</string>
-    <string name="exclude_certain_apps_from_using_tailscale">排除特定的应用使用 Tailscale</string>
+    <string name="filter_apps_allowed_to_access_tailscale">排除特定的应用使用 Tailscale</string>
     <string name="selected_apps_will_access_the_internet_directly_without_using_tailscale">勾选的应用将绕过 Tailscale，直接访问互联网。</string>
+    <string name="selected_apps_will_access_tailscale">只有您选择的应用才会被允许访问 Tailscale。</string>
     <string name="count_excluded_apps">已排除的应用 (%1$s)</string>
+    <string name="count_included_apps">已包含的应用 (%1$s)</string>
     <string name="certain_apps_are_not_routed_via_tailscale">在此设备上，某些应用不通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
     <string name="only_specific_apps_are_routed_via_tailscale">在此设备上，只有特定应用通过 Tailscale 路由。此设置由您的组织管理，您无法更改。有关更多信息，请联系您的网络管理员。</string>
+    <string name="switch_to_select_to_include">切换到“包含模式”</string>
+    <string name="switch_to_select_to_exclude">切换到“排除模式”</string>
+    <string name="switch_warning_dialog_title">已选应用将被重置</string>
+    <string name="switch_warning_dialog_description">通过切换过滤模式，您之前选择的所有应用将被重置。请确保这是您想要的操作。</string>
+    <string name="your_current_selection_will_be_cleared">您当前的选择将被清除。</string>
     <string name="specifies_a_list_of_apps_that_will_be_excluded_from_tailscale_routes_and_dns_even_when_tailscale_is_running_all_other_apps_will_use_tailscale">指定即使 Tailscale 正在运行，也将被排除在 Tailscale 路由和 DNS 之外的应用列表。所有其他应用将使用 Tailscale。</string>
-    <string name="specifies_a_list_of_apps_that_will_always_use_tailscale_routes_and_dns_when_tailscale_is_running_all_other_apps_won_t_use_tailscale_if_this_value_is_non_empty">指定当 Tailscale 正在运行时，将始终使用 Tailscale 路由和 DNS 的应用列表。如果此值非空，所有其他应用将不会使用 Tailscale。</string>
+    <string name="specifies_a_list_of_apps_that_will_always_use_tailscale_routes_and_dns_when_tailscale_is_running_all_other_apps_won_t_use_tailscale_if_this_value_is_non_empty">指定当 Tailscale 正在运行时，将始终使用 Tailscale 路由 and DNS 的应用列表。如果此值非空，所有其他应用将不会使用 Tailscale。</string>
     <string name="included_packages">包含的包</string>
     <string name="excluded_packages">排除的包</string>
 
