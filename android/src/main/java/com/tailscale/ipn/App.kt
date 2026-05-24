@@ -761,7 +761,7 @@ open class UninitializedApp : Application() {
       return true
     }
 
-    return getUnencryptedPrefs().getBoolean(IS_CLIENT_LOGGING_ENABLED_KEY, true)
+    return getUnencryptedPrefs().getBoolean(IS_CLIENT_LOGGING_ENABLED_KEY, false)
   }
 
   fun updateIsClientLoggingEnabled(value: Boolean) {
