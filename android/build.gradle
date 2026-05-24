@@ -87,7 +87,17 @@ android {
     signingConfigs {
         release {
             if (System.getenv("JKS_PATH") != null) {
-                storeFile file(System.getenv("JKS_PATH"))
+                def keystorePath = System.getenv("JKS_PATH")
+                File keystoreFile = new File(keystorePath)
+                if (!keystoreFile.isAbsolute()) {
+                    def rootKeystore = new File(projectDir.parentFile, keystorePath)
+                    if (rootKeystore.exists()) {
+                        keystoreFile = rootKeystore
+                    } else {
+                        keystoreFile = new File(projectDir, keystorePath)
+                    }
+                }
+                storeFile keystoreFile
                 storePassword System.getenv("JKS_PASSWORD")
                 keyAlias 'tailscale'
                 keyPassword System.getenv("JKS_PASSWORD")

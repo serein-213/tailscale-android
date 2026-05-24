@@ -377,4 +377,12 @@
     <string name="enable_hardware_attestation">启用硬件认证</string>
     <string name="use_hardware_backed_keys_to_bind_node_identity_to_the_device">使用硬件支持的密钥将节点身份绑定到设备</string>
 
+    <!-- Strings for remote client logging setting -->
+    <string name="client_remote_logging_enabled">远程客户端日志</string>
+    <string name="client_remote_logging_enabled_subtitle">控制是否上传调试日志及自愿开启的流日志。</string>
+    <string name="client_remote_logging_enabled_subtitle_mdm">远程管理设备始终启用客户端日志。</string>
+    <string name="client_remote_logging_disable_confirm_title">禁用远程客户端日志？</string>
+    <string name="client_remote_logging_disable_confirm_message">禁用远程客户端日志后，若您的 Tailnet 管理员已启用并依赖网络流日志，该功能将无法正常工作；同时 Tailscale 支持团队也将无法协助排查此设备上的问题。</string>
+    <string name="client_remote_logging_disable_confirm_button">确认禁用</string>
+
 </resources>
