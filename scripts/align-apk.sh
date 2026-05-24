@@ -1,6 +1,22 @@
 #!/bin/bash
 set -e
 
+# Auto-detect Android SDK (same search order as Makefile)
+if [ -z "$ANDROID_HOME" ]; then
+    for dir in "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk" "$HOME/Android/Sdk" "$HOME/AppData/Local/Android/Sdk" "/usr/lib/android-sdk"; do
+        if [ -n "$dir" ] && [ -d "$dir/build-tools" ]; then
+            export ANDROID_HOME="$dir"
+            break
+        fi
+    done
+fi
+
+if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME/build-tools" ]; then
+    echo "Error: ANDROID_HOME not set and Android SDK not found."
+    echo "Set ANDROID_HOME or install the Android SDK (e.g. make androidsdk)."
+    exit 1
+fi
+
 INPUT_APK=$1
 OUTPUT_APK=$2
 
@@ -10,7 +26,7 @@ if [ -z "$INPUT_APK" ] || [ -z "$OUTPUT_APK" ]; then
 fi
 
 # Find zipalign
-ZIPALIGN=$(find $ANDROID_HOME/build-tools -name zipalign | sort -V | tail -n 1)
+ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -n 1)
 
 if [ -z "$ZIPALIGN" ]; then
     echo "Error: zipalign not found in $ANDROID_HOME/build-tools"

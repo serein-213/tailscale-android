@@ -37,7 +37,7 @@ class SettingsViewModel : IpnViewModel() {
   val tailNetLockEnabled: StateFlow<Boolean?> = MutableStateFlow(null)
   // True if tailscaleDNS is enabled. nil if not yet known.
   val corpDNSEnabled: StateFlow<Boolean?> = MutableStateFlow(null)
-  val isClientRemoteLoggingEnabled: StateFlow<Boolean> = MutableStateFlow(true)
+  val isClientRemoteLoggingEnabled: StateFlow<Boolean> = MutableStateFlow(false)
 
   init {
     isClientRemoteLoggingEnabled.set(App.get().isClientLoggingEnabled())

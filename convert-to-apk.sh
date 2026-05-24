@@ -9,6 +9,22 @@
 
 set -e
 
+# Auto-detect Android SDK (same search order as Makefile)
+if [ -z "$ANDROID_HOME" ]; then
+    for dir in "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk" "$HOME/Android/Sdk" "$HOME/AppData/Local/Android/Sdk" "/usr/lib/android-sdk"; do
+        if [ -n "$dir" ] && [ -d "$dir/build-tools" ]; then
+            export ANDROID_HOME="$dir"
+            break
+        fi
+    done
+fi
+
+if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME/build-tools" ]; then
+    echo "Error: ANDROID_HOME not set and Android SDK not found."
+    echo "Set ANDROID_HOME or install the Android SDK (e.g. make androidsdk)."
+    exit 1
+fi
+
 # Load version info if available
 if [ -f "tailscale.version" ]; then
     VERSION=$(grep "VERSION_SHORT" tailscale.version | cut -d'"' -f2)
@@ -65,7 +81,7 @@ convert_aab_to_apk() {
         
         # 4. Re-sign the APK (zipalign breaks existing signatures)
         echo "Re-signing $output_apk..."
-        APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+        APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
         if [ -n "$APKSIGNER" ]; then
             $APKSIGNER sign \
                 --ks "$JKS_PATH" \
@@ -96,7 +112,7 @@ sign_existing_apks() {
     fi
 
     echo "Checking for unsigned APKs in $apk_dir..."
-    APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+    APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
     
     # 查找所有架构的 APK，包括 universal
     find "$apk_dir" -name "*.apk" | while read -r apk; do
