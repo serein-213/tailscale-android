@@ -34,14 +34,25 @@ class Health {
       } == true
     }
 
+    /** Hydrated value copied to the clipboard for debugging. */
+    val clipboardText: String
+      get() = "$WarnableCode: $Title" + if (Text.isNotEmpty()) "\n$Text" else ""
+
     override fun compareTo(other: UnhealthyState): Int {
       // Compare by severity first
-      val severityComparison = Severity.compareTo(other.Severity)
+      val severityComparison = other.Severity.compareTo(Severity)
       if (severityComparison != 0) {
         return severityComparison
       }
 
-      // If severities are equal, compare by warnableCode
+      // If severities are equal, connectivity impacting issues first
+      val connectivityComparison =
+          (other.ImpactsConnectivity ?: false).compareTo(ImpactsConnectivity ?: false)
+      if (connectivityComparison != 0) {
+        return connectivityComparison
+      }
+
+      // Otherwise, alphabetical by WarnableCode
       return WarnableCode.compareTo(other.WarnableCode)
     }
   }

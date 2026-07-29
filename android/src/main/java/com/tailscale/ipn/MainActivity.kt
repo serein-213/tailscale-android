@@ -342,7 +342,7 @@ class MainActivity : ComponentActivity() {
                         loginAtUrl = ::login,
                         navigation = mainViewNav,
                         viewModel = viewModel,
-                        appViewModel = appViewModel)
+                    )
                   }
                   composable("search") {
                     val autoFocus = viewModel.autoFocusSearch

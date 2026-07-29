@@ -52,7 +52,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -199,7 +198,6 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
       TSLog.e("App", "initializeApp: startLibtailscale failed", e)
       return
     }
-
     try {
       healthNotifier = HealthNotifier(Notifier.health, Notifier.state, applicationScope)
       connectivityManager = this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -245,14 +243,6 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
             }
       } catch (e: Exception) {
         TSLog.e("App", "Notifier collect failed", e)
-      }
-    }
-    
-    applicationScope.launch {
-      try {
-        MDMSettings.forceEnabled.flow.first()
-      } catch (e: Exception) {
-        // ignore
       }
     }
     try {
