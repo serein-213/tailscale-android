@@ -79,6 +79,10 @@ object Notifier {
       val mask =
           NotifyWatchOpt.Prefs.value or
               NotifyWatchOpt.InitialState.value or
+              // The first full map preserves fields that InitialStatus deliberately omits (such
+              // as DNS and Hostinfo.IPNVersion). Subsequent updates still use the lightweight
+              // peer-change protocol below.
+              NotifyWatchOpt.InitialNetMap.value or
               NotifyWatchOpt.PeerChanges.value or
               NotifyWatchOpt.NoNetmap.value or
               NotifyWatchOpt.InitialStatus.value or
@@ -107,6 +111,9 @@ object Notifier {
                     }
                   }
                   updateNetworkMap(notify)
+                  // InitialNetMap is only delivered once. Apply it after InitialStatus so the
+                  // complete snapshot wins, while later peer deltas preserve its extra fields.
+                  notify.NetMap?.let(_netmap::set)
                   notify.Prefs?.let(prefs::set)
                   notify.Engine?.let(engineStatus::set)
                   notify.TailFSShares?.let(tailFSShares::set)
@@ -143,6 +150,7 @@ object Notifier {
     EngineUpdates(1),
     InitialState(2),
     Prefs(4),
+    InitialNetMap(8),
     NoPrivateKey(16),
     InitialTailFSShares(32),
     InitialOutgoingFiles(64),
