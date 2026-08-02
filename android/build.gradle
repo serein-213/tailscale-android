@@ -43,7 +43,9 @@ android {
         // (base = major*100000000 + minor*100000 + patch*10). AndroidTV builds
         // increment this by 1 in the Makefile's release-tv target so the two
         // variants are distinguishable in the Play Store.
-        versionCode 110200000
+        // Locally maintained .mod releases advance by 10, reserving the final
+        // digit for the Android TV variant above.
+        versionCode 110200010
         versionName getVersionProperty("VERSION_LONG")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 

@@ -42,6 +42,7 @@ class Ipn {
       val OutgoingFiles: List<OutgoingFile>? = null,
       val State: Int? = null,
       var Prefs: Prefs? = null,
+      var NetMap: Netmap.NetworkMap? = null,
       var SelfChange: Tailcfg.Node? = null,
       var InitialStatus: IpnState.Status? = null,
       var PeersChanged: List<Tailcfg.Node>? = null,

@@ -31,6 +31,7 @@ private object Endpoint {
   const val DEBUG = "debug"
   const val DEBUG_LOG = "debug-log"
   const val BUG_REPORT = "bugreport"
+  const val DNS_CONFIG = "dns-config"
   const val PREFS = "prefs"
   const val FILE_TARGETS = "file-targets"
   const val UPLOAD_METRICS = "upload-client-metrics"
@@ -78,6 +79,11 @@ class Client(private val scope: CoroutineScope) {
 
   fun status(responseHandler: StatusResponseHandler) {
     get(Endpoint.STATUS, responseHandler = responseHandler)
+  }
+
+  /** Returns the complete DNS configuration from the active network map. */
+  fun dnsConfig(responseHandler: (Result<Tailcfg.DNSConfig>) -> Unit) {
+    get(Endpoint.DNS_CONFIG, responseHandler = responseHandler)
   }
 
   fun ping(peer: Tailcfg.Node, responseHandler: PingResultHandler) {

@@ -22,6 +22,9 @@ import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -42,7 +45,7 @@ class DNSSettingsViewModel : IpnViewModel() {
       Notifier.netmap
           .combine(Notifier.prefs) { netmap, prefs -> Pair(netmap, prefs) }
           .stateIn(viewModelScope)
-          .collect { (netmap, prefs) ->
+          .collect { (_, prefs) ->
             TSLog.d("DNSSettingsViewModel", "prefs: CorpDNS=" + prefs?.CorpDNS.toString())
             prefs?.let {
               if (it.CorpDNS) {
@@ -51,8 +54,31 @@ class DNSSettingsViewModel : IpnViewModel() {
                 enablementState.set(DNSEnablementState.DISABLED)
               }
             } ?: run { enablementState.set(DNSEnablementState.NOT_RUNNING) }
-            netmap?.let { dnsConfig.set(netmap.DNS) }
           }
+    }
+
+    // NotifyInitialStatus intentionally omits the full network map, including DNS. Fetch the
+    // canonical DNS config from LocalAPI instead so resolvers, search domains, and split-DNS
+    // routes remain visible after the notifier migrated away from Notify.NetMap.
+    viewModelScope.launch {
+      Notifier.netmap
+          .map { netmap -> netmap?.let { it.SelfNode.StableID to it.Domain } }
+          .filterNotNull()
+          .distinctUntilChanged()
+          .collect {
+            dnsConfig.set(null)
+            refreshDNSConfig()
+          }
+    }
+
+    refreshDNSConfig()
+  }
+
+  private fun refreshDNSConfig() {
+    Client(viewModelScope).dnsConfig { result ->
+      result
+          .onSuccess { dnsConfig.set(it) }
+          .onFailure { TSLog.d("DNSSettingsViewModel", "Failed to fetch DNS config: $it") }
     }
   }
 
