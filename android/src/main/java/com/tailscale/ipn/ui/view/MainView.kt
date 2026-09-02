@@ -224,6 +224,10 @@ fun MainView(
                   ExitNodeStatus(
                       navAction = navigation.onNavigateToExitNodes, viewModel = viewModel)
                 }
+                val pending by viewModel.pendingTaildrop.pendingItems.collectAsState()
+                if (pending.isNotEmpty()) {
+                  TaildropBannerView(viewModel = viewModel.pendingTaildrop)
+                }
                 PeerList(
                     viewModel = viewModel,
                     onNavigateToPeerDetails = navigation.onNavigateToPeerDetails,
@@ -252,6 +256,16 @@ fun MainView(
         ModalBottomSheet(onDismissRequest = { viewModel.onPingDismissal() }) {
           PingView(model = viewModel.pingViewModel)
         }
+      }
+      val showPendingSheet by
+          viewModel.pendingTaildrop.isPresentingPendingItemsList.collectAsState()
+      if (showPendingSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+              viewModel.pendingTaildrop.isPresentingPendingItemsList.value = false
+            }) {
+              InlineShareListSheet(viewModel = viewModel.pendingTaildrop)
+            }
       }
     }
   }
