@@ -12,6 +12,7 @@ import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -37,6 +38,8 @@ import android.os.Build
 @Composable
 fun AppTheme(content: @Composable() () -> Unit) {
   val themeMode by ThemeConfig.theme.collectAsState()
+  val mangaPaper by ThemeConfig.mangaPaper.collectAsState()
+  val mangaAccent by ThemeConfig.mangaAccent.collectAsState()
   val context = LocalContext.current
   val systemInDarkTheme = isSystemInDarkTheme()
 
@@ -45,6 +48,7 @@ fun AppTheme(content: @Composable() () -> Unit) {
     AppThemeMode.LIGHT -> false
     AppThemeMode.DARK, AppThemeMode.DRACULA, AppThemeMode.SOLARIZED, AppThemeMode.OLED -> true
     AppThemeMode.MONET -> systemInDarkTheme
+    AppThemeMode.MANGA -> mangaPaper != MangaPaper.DAY
   }
 
   val colors = when (themeMode) {
@@ -61,16 +65,21 @@ fun AppTheme(content: @Composable() () -> Unit) {
         if (systemInDarkTheme) DarkColors else LightColors
       }
     }
+    AppThemeMode.MANGA -> mangaColorScheme(mangaPaper, mangaAccent)
   }
 
   val typography =
-      Typography(
-          // titleMedium is styled to be slightly larger than bodyMedium for emphasis
-          titleMedium =
-              MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 26.sp),
-          // bodyMedium is styled to use same line height as titleMedium to ensure even vertical
-          // margins in list items.
-          bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp))
+      if (themeMode == AppThemeMode.MANGA) {
+        mangaTypography()
+      } else {
+        Typography(
+            // titleMedium is styled to be slightly larger than bodyMedium for emphasis
+            titleMedium =
+                MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 26.sp),
+            // bodyMedium is styled to use same line height as titleMedium to ensure even vertical
+            // margins in list items.
+            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp))
+      }
 
   // TODO: Migrate to Activity.enableEdgeToEdge
   @Suppress("deprecation") val systemUiController = rememberSystemUiController()
@@ -81,7 +90,11 @@ fun AppTheme(content: @Composable() () -> Unit) {
     onDispose {}
   }
 
-  MaterialTheme(colorScheme = colors, typography = typography, content = content)
+  MaterialTheme(
+      colorScheme = colors,
+      typography = typography,
+      shapes = if (themeMode == AppThemeMode.MANGA) MangaShapes else Shapes(),
+      content = content)
 }
 
 private val LightColors =
