@@ -62,7 +62,7 @@ func (w *androidLogWriter) Write(data []byte) (int, error) {
 		recover() // ignore panics during logging to avoid recursion
 	}()
 	n := 0
-// ... rest same ...
+	// ... rest same ...
 	for len(data) > 0 {
 		msg := data
 		// Truncate the buffer

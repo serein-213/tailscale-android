@@ -14,12 +14,12 @@ import (
 	"net"
 	"net/http"
 	"net/textproto"
-	"unsafe"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"tailscale.com/ipn"
 )
@@ -154,7 +154,7 @@ func (app *App) callLocalAPI(timeoutMillis int, method, endpoint string, header 
 	if header != nil {
 		maps.Copy(req.Header, header)
 	}
-	
+
 	deadline, _ := ctx.Deadline()
 	pipeReader, pipeWriter := net.Pipe()
 	pipeReader.SetDeadline(deadline)

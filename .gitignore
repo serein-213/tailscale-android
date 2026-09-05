@@ -58,3 +58,6 @@ tailscale.version
 # local tmp folder
 .tmp/
 convert.sh
+
+# Local release signing credentials
+.release.local

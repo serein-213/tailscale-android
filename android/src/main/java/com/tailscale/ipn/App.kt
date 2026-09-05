@@ -245,13 +245,6 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
         TSLog.e("App", "Notifier collect failed", e)
       }
     }
-    applicationScope.launch {
-      try {
-        MDMSettings.forceEnabled.flow.first()
-      } catch (e: Exception) {
-        // ignore
-      }
-    }
     try {
       FeatureFlags.initialize(mapOf("enable_new_search" to true))
     } catch (e: Exception) {

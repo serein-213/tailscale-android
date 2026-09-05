@@ -146,7 +146,7 @@ android {
             proguardFiles getDefaultProguardFile(
                     'proguard-android-optimize.txt'),
                     'proguard-rules.pro'
-            
+
             signingConfig signingConfigs.release
 
             // 修改 zipalign 对齐到 16KB (默认是 4KB)，以支持 Android 16

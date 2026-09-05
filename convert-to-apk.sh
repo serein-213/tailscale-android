@@ -72,13 +72,13 @@ convert_aab_to_apk() {
 
     # 2. Extract the universal APK from the .apks zip
     unzip -p "$apks_tmp" universal.apk > "${output_apk}.unaligned"
-    
+
     # 3. Align the APK to 16KB boundaries for Android 16 support
     if [ -f "./scripts/align-apk.sh" ]; then
         echo "Aligning $output_apk to 16KB boundaries..."
         ./scripts/align-apk.sh "${output_apk}.unaligned" "$output_apk"
         rm "${output_apk}.unaligned"
-        
+
         # 4. Re-sign the APK (zipalign breaks existing signatures)
         echo "Re-signing $output_apk..."
         APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
@@ -96,7 +96,7 @@ convert_aab_to_apk() {
         mv "${output_apk}.unaligned" "$output_apk"
         echo "Warning: scripts/align-apk.sh not found, skipping 16KB alignment."
     fi
-    
+
     rm "$apks_tmp"
     # Cleanup residual V4 signature index files (.idsig)
     if [ -f "${output_apk}.idsig" ]; then
@@ -113,7 +113,7 @@ sign_existing_apks() {
 
     echo "Checking for unsigned APKs in $apk_dir..."
     APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
-    
+
     # 查找所有架构的 APK，包括 universal
     find "$apk_dir" -name "*.apk" | while read -r apk; do
         # 检查是否已签名
@@ -125,7 +125,7 @@ sign_existing_apks() {
                 --ks-key-alias tailscale \
                 --key-pass pass:"$JKS_PASSWORD" \
                 "$apk"
-            
+
             # 对齐校验（确保符合 16KB）
             if [ -f "./scripts/align-apk.sh" ]; then
                 ./scripts/align-apk.sh "$apk" "${apk}.aligned"
