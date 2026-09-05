@@ -13,7 +13,7 @@
     <string name="not_connected">Not connected</string>
     <string name="empty" translatable="false"> </string>
     <string name="template" translatable="false">%s</string>
-    <string name="selected">Selected</string> 
+    <string name="selected">Selected</string>
     <string name="offline">Offline</string>
     <string name="ok">OK</string>
     <string name="_continue">Continue</string>
@@ -60,9 +60,20 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_monet">System Colors</string>
+    <string name="theme_manga">Manga</string>
     <string name="theme_dracula">Dracula</string>
     <string name="theme_solarized">Solarized Dark</string>
     <string name="theme_oled">OLED Black</string>
+    <string name="manga_paper">Manga Paper</string>
+    <string name="manga_paper_day">Day</string>
+    <string name="manga_paper_night">Night</string>
+    <string name="manga_paper_nord">Nord</string>
+    <string name="manga_accent">Manga Accent</string>
+    <string name="manga_accent_mono">Mono</string>
+    <string name="manga_accent_crimson">Crimson</string>
+    <string name="manga_accent_cobalt">Cobalt</string>
+    <string name="manga_accent_sun">Sun</string>
+    <string name="manga_accent_frost">Frost</string>
     <string name="internal_debug_options">Internal debug options</string>
 
     <!-- Strings for the main screen -->
