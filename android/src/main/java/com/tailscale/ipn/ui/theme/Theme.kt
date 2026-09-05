@@ -39,7 +39,7 @@ fun AppTheme(content: @Composable() () -> Unit) {
   val themeMode by ThemeConfig.theme.collectAsState()
   val context = LocalContext.current
   val systemInDarkTheme = isSystemInDarkTheme()
-  
+
   val useDarkTheme = when (themeMode) {
     AppThemeMode.SYSTEM -> systemInDarkTheme
     AppThemeMode.LIGHT -> false

@@ -326,6 +326,7 @@ object Notifier {
         Online = Online,
         Capabilities = Capabilities,
         CapMap = CapMap,
+        Tags = Tags,
         ComputedName = computedName,
         ComputedNameWithHost = computedNameWithHost)
   }
