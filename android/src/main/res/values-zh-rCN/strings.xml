@@ -483,6 +483,14 @@
     <string name="settings_hide_row">隐藏此行</string>
     <string name="settings_unhide_row">取消隐藏此行</string>
     <string name="settings_show_hidden_hint">正在显示已隐藏项，再次长按「关于」退出</string>
+    <string name="admin_key_status_all">全部</string>
+    <string name="admin_key_status_usable">可用</string>
+    <string name="admin_key_status_used">已使用</string>
+    <string name="admin_key_status_expired">已过期</string>
+    <string name="admin_all_users">全部用户</string>
+    <string name="admin_no_keys">没有符合筛选条件的密钥。</string>
+    <string name="admin_policy_tab">策略</string>
+    <string name="admin_routes_approved">已批准 %1$d/%2$d</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>

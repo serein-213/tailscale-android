@@ -6,10 +6,12 @@ package com.tailscale.ipn.ui.view
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -64,6 +66,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminApi
+import com.tailscale.ipn.ui.admin.KeyStatus
+import com.tailscale.ipn.ui.admin.filterPreAuthKeys
+import com.tailscale.ipn.ui.admin.isExpired
+import com.tailscale.ipn.ui.admin.status
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
@@ -73,6 +79,7 @@ import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -97,6 +104,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var expandedUser by remember { mutableStateOf<String?>(null) }
+  var keyStatus by remember { mutableStateOf(KeyStatus.ALL) }
+  var keyUserId by remember { mutableStateOf<String?>(null) }
   var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
   var policyLoading by remember { mutableStateOf(false) }
@@ -237,7 +246,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 Tab(
                     selected = selectedTab == 4,
                     onClick = { selectedTab = 4 },
-                    text = { Text(stringResource(R.string.admin_policy)) })
+                    text = { Text(stringResource(R.string.admin_policy_tab)) })
               }
 
               when (selectedTab) {
@@ -281,10 +290,28 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                             }
                       }
                     }
-                2 ->
+                2 -> {
+                  val visibleKeys = filterPreAuthKeys(keys, keyStatus, keyUserId, Instant.now())
+                  Column(Modifier.fillMaxSize()) {
+                    KeyFiltersRow(
+                        keys = keys,
+                        users = users,
+                        status = keyStatus,
+                        onStatus = { keyStatus = it },
+                        userId = keyUserId,
+                        onUser = { keyUserId = it })
                     LazyColumn(Modifier.fillMaxSize()) {
-                      items(keys, key = { it.id }) { key ->
+                      items(visibleKeys, key = { it.id }) { key ->
                         PreAuthKeyRow(key, onExpire = { pendingExpireKey = key })
+                      }
+                      if (visibleKeys.isEmpty()) {
+                        item("noKeys") {
+                          Text(
+                              stringResource(R.string.admin_no_keys),
+                              style = MaterialTheme.typography.bodyMedium,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant,
+                              modifier = Modifier.padding(16.dp))
+                        }
                       }
                       item("newKey") {
                         TextButton(
@@ -296,6 +323,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                             }
                       }
                     }
+                  }
+                }
                 3 ->
                     LazyColumn(Modifier.fillMaxSize()) {
                       if (routableNodes.isEmpty()) {
@@ -555,6 +584,78 @@ private fun NodeRow(
       })
 }
 
+/** Status and owner filters for the key list, with counts so the numbers add up at a glance. */
+@Composable
+private fun KeyFiltersRow(
+    keys: List<AdminApi.HsPreAuthKey>,
+    users: List<AdminApi.HsUser>,
+    status: KeyStatus,
+    onStatus: (KeyStatus) -> Unit,
+    userId: String?,
+    onUser: (String?) -> Unit,
+) {
+  val now = Instant.now()
+  Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+    Row(
+        Modifier.fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp)) {
+          KeyStatus.entries.forEach { candidate ->
+            FilterChip(
+                label =
+                    "${stringResource(keyStatusLabel(candidate))} (${filterPreAuthKeys(keys, candidate, userId, now).size})",
+                selected = status == candidate,
+                onClick = { onStatus(candidate) })
+          }
+        }
+    if (users.size > 1) {
+      Row(
+          Modifier.fillMaxWidth()
+              .horizontalScroll(rememberScrollState())
+              .padding(horizontal = 12.dp, vertical = 2.dp)) {
+            FilterChip(
+                label = "${stringResource(R.string.admin_all_users)} (${filterPreAuthKeys(keys, status, null, now).size})",
+                selected = userId == null,
+                onClick = { onUser(null) })
+            users.forEach { user ->
+              FilterChip(
+                  label = "${user.name} (${filterPreAuthKeys(keys, status, user.id, now).size})",
+                  selected = userId == user.id,
+                  onClick = { onUser(user.id) })
+            }
+          }
+    }
+    Spacer(Modifier.size(4.dp))
+  }
+}
+
+@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+  Box(
+      Modifier.padding(end = 6.dp)
+          .background(
+              if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+              else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              RoundedCornerShape(50))
+          .clickable(onClick = onClick)
+          .padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color =
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+}
+
+private fun keyStatusLabel(status: KeyStatus): Int =
+    when (status) {
+      KeyStatus.ALL -> R.string.admin_key_status_all
+      KeyStatus.USABLE -> R.string.admin_key_status_usable
+      KeyStatus.USED -> R.string.admin_key_status_used
+      KeyStatus.EXPIRED -> R.string.admin_key_status_expired
+    }
+
 @Composable
 private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
   val clipboard = LocalClipboardManager.current
@@ -587,7 +688,9 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
             Text(
                 times.joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color =
+                    if (key.isExpired(Instant.now())) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1)
           }
         }
@@ -825,9 +928,14 @@ private fun RouteNodeBlock(
                   color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
+          Text(
+              stringResource(R.string.admin_routes_approved, node.approvedRoutes.size, routes.size),
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant)
           if (isExitNode) {
             Box(
-                Modifier.background(
+                Modifier.padding(start = 8.dp)
+                    .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
                         RoundedCornerShape(50))
                     .padding(horizontal = 10.dp, vertical = 2.dp)) {
@@ -846,15 +954,19 @@ private fun RouteNodeBlock(
                 val next = if (approved) node.approvedRoutes - route else node.approvedRoutes + route
                 onApply(routes.filter { it in next })
               }
-              .padding(end = 16.dp),
+              .padding(start = 6.dp, end = 16.dp, top = 1.dp, bottom = 1.dp),
           verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = approved, onCheckedChange = null)
             Text(
                 route,
                 style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace)
+                fontFamily = FontFamily.Monospace,
+                color =
+                    if (approved) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant)
           }
     }
+    Spacer(Modifier.size(6.dp))
     Lists.ItemDivider()
   }
 }

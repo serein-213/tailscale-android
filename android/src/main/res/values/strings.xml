@@ -481,6 +481,14 @@
     <string name="settings_hide_row">Hide this row</string>
     <string name="settings_unhide_row">Unhide this row</string>
     <string name="settings_show_hidden_hint">Showing hidden rows - long-press About again to exit</string>
+    <string name="admin_key_status_all">All</string>
+    <string name="admin_key_status_usable">Usable</string>
+    <string name="admin_key_status_used">Used</string>
+    <string name="admin_key_status_expired">Expired</string>
+    <string name="admin_all_users">All users</string>
+    <string name="admin_no_keys">No keys match this filter.</string>
+    <string name="admin_policy_tab">Policy</string>
+    <string name="admin_routes_approved">%1$d/%2$d approved</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>
