@@ -75,6 +75,30 @@ class AdminApiParsingTest {
   }
 
   @Test
+  fun normalizesApiBaseUrl() {
+    assertEquals("https://h.example.com", AdminApi.normalizeBaseUrlInternal("https://h.example.com/admin"))
+    assertEquals("https://h.example.com", AdminApi.normalizeBaseUrlInternal("https://h.example.com/api/v1"))
+    assertEquals("https://h.example.com", AdminApi.normalizeBaseUrlInternal("h.example.com/"))
+    assertEquals("http://10.0.0.5:8080", AdminApi.normalizeBaseUrlInternal("http://10.0.0.5:8080/admin/"))
+    assertEquals("", AdminApi.normalizeBaseUrlInternal("   "))
+  }
+
+  @Test
+  fun encodesPathSegmentsWithoutFormEncoding() {
+    // URLEncoder is form encoding: "+" would reach the server literally in a path segment.
+    assertEquals("a%20b", AdminApi.urlEncode("a b"))
+    assertEquals("Chen-2", AdminApi.urlEncode("Chen-2"))
+    assertEquals("a%2Fb", AdminApi.urlEncode("a/b"))
+  }
+
+  @Test
+  fun normalizesTags() {
+    assertEquals(listOf("tag:router", "tag:echo"), AdminApi.normalizeTags(listOf("router", "echo")))
+    assertEquals(listOf("tag:router"), AdminApi.normalizeTags(listOf("router", "tag:router", "  router ")))
+    assertEquals(emptyList<String>(), AdminApi.normalizeTags(listOf("", "   ")))
+  }
+
+  @Test
   fun parsesUsers() {
     val usersJson =
         """

@@ -29,6 +29,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,6 +55,7 @@ import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
 import com.tailscale.ipn.ui.util.LoadingIndicator
 import com.tailscale.ipn.ui.util.ServerConfig
+import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +67,7 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun AdminConsoleView(backToSettings: BackNavigation) {
+  val TAG = "AdminConsoleView"
   val scope = rememberCoroutineScope()
 
   var baseUrl by remember { mutableStateOf(AdminApi.baseUrl() ?: defaultBaseUrl()) }
@@ -90,10 +94,11 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var showCreateKey by remember { mutableStateOf(false) }
   var showCreateUser by remember { mutableStateOf(false) }
 
+  val snackbarHostState = remember { SnackbarHostState() }
+
   fun reload() {
     scope.launch {
       busy = true
-      status = null
       try {
         val n = withContext(Dispatchers.IO) { AdminApi.nodes() }
         nodes.clear()
@@ -104,9 +109,12 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         val u = withContext(Dispatchers.IO) { AdminApi.users() }
         users.clear()
         users.addAll(u)
-        policy = withContext(Dispatchers.IO) { AdminApi.policy() }
         configured = true
         status = null
+        // Read-only extra: a failure here must not blank out the sections above.
+        runCatching { withContext(Dispatchers.IO) { AdminApi.policy() } }
+            .onSuccess { policy = it }
+            .onFailure { TSLog.w(TAG, "policy fetch failed: ${it.message}") }
       } catch (e: Exception) {
         status = e.message ?: e.javaClass.simpleName
       } finally {
@@ -115,11 +123,28 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
     }
   }
 
+  /**
+   * Runs a mutating call and surfaces failures. Returns false when it failed so the caller skips
+   * the follow-up reload, which would otherwise wipe the error from the screen.
+   */
+  suspend fun runAction(block: suspend () -> Unit): Boolean =
+      try {
+        withContext(Dispatchers.IO) { block() }
+        true
+      } catch (e: Exception) {
+        val message = e.message ?: e.javaClass.simpleName
+        TSLog.e(TAG, "admin action failed", e)
+        snackbarHostState.showSnackbar(message, withDismissAction = true)
+        false
+      }
+
   LaunchedEffect(configured) {
     if (configured && nodes.isEmpty() && !busy) reload()
   }
 
-  Scaffold(topBar = { Header(R.string.in_app_admin, onBack = backToSettings) }) { innerPadding ->
+  Scaffold(
+      topBar = { Header(R.string.in_app_admin, onBack = backToSettings) },
+      snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
     LoadingIndicator.Wrap {
       LazyColumn(Modifier.padding(innerPadding)) {
         item("connection") {
@@ -234,8 +259,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = {
           pendingExpire = null
           scope.launch {
-            runAction { AdminApi.expireNode(node.id) }
-            reload()
+            if (runAction { AdminApi.expireNode(node.id) }) reload()
           }
         })
   }
@@ -249,8 +273,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = {
           pendingDelete = null
           scope.launch {
-            runAction { AdminApi.deleteNode(node.id) }
-            reload()
+            if (runAction { AdminApi.deleteNode(node.id) }) reload()
           }
         })
   }
@@ -264,8 +287,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = { newName ->
           pendingRename = null
           scope.launch {
-            runAction { AdminApi.renameNode(node.id, newName) }
-            reload()
+            if (runAction { AdminApi.renameNode(node.id, newName) }) reload()
           }
         })
   }
@@ -277,8 +299,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onApply = { routes ->
           pendingRoutes = null
           scope.launch {
-            runAction { AdminApi.approveRoutes(node.id, routes) }
-            reload()
+            if (runAction { AdminApi.approveRoutes(node.id, routes) }) reload()
           }
         })
   }
@@ -294,8 +315,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
           pendingTags = null
           val tags = value.split(",", " ").map { it.trim() }.filter { it.isNotEmpty() }
           scope.launch {
-            runAction { AdminApi.setNodeTags(node.id, tags) }
-            reload()
+            if (runAction { AdminApi.setNodeTags(node.id, tags) }) reload()
           }
         })
   }
@@ -309,8 +329,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = { name ->
           showCreateUser = false
           scope.launch {
-            runAction { AdminApi.createUser(name) }
-            reload()
+            if (runAction { AdminApi.createUser(name) }) reload()
           }
         })
   }
@@ -324,8 +343,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = { name ->
           pendingRenameUser = null
           scope.launch {
-            runAction { AdminApi.renameUser(user.id, name) }
-            reload()
+            if (runAction { AdminApi.renameUser(user.id, name) }) reload()
           }
         })
   }
@@ -339,8 +357,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = {
           pendingDeleteUser = null
           scope.launch {
-            runAction { AdminApi.deleteUser(user.id) }
-            reload()
+            if (runAction { AdminApi.deleteUser(user.id) }) reload()
           }
         })
   }
@@ -358,8 +375,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = {
           pendingExpireKey = null
           scope.launch {
-            runAction { AdminApi.expirePreAuthKey(key.id) }
-            reload()
+            if (runAction { AdminApi.expirePreAuthKey(key.id) }) reload()
           }
         })
   }
@@ -371,7 +387,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onCreate = { user, reusable, ephemeral, days ->
           showCreateKey = false
           scope.launch {
-            runAction {
+            if (runAction {
               AdminApi.createPreAuthKey(
                   userId = user.id,
                   reusable = reusable,
@@ -379,22 +395,13 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                   expirationRfc3339 =
                       if (days <= 0) null
                       else java.time.Instant.now().plusSeconds(days * 86400L).toString())
-            }
-            reload()
+
+            }) reload()
           }
         })
   }
 }
 
-/** Runs an API call and reports failures through the shared status line. */
-private suspend fun runAction(block: suspend () -> Unit) {
-  try {
-    withContext(Dispatchers.IO) { block() }
-  } catch (e: Exception) {
-    // Surfaced by the caller's reload(); log for debugging.
-    com.tailscale.ipn.util.TSLog.e("AdminConsoleView", "admin action failed", e)
-  }
-}
 
 @Composable
 private fun NodeRow(
@@ -421,7 +428,7 @@ private fun NodeRow(
         val parts = mutableListOf<String>()
         node.user?.name?.takeIf { it.isNotBlank() }?.let { parts += it }
         node.ipAddresses.firstOrNull()?.let { parts += it }
-        node.expiry?.take(10)?.let { parts += it }
+        node.expiry?.take(10)?.takeIf { !isZeroTime(it) }?.let { parts += it }
         node.validTags.takeIf { it.isNotEmpty() }?.let { parts += it.joinToString(" ") }
         Text(
             parts.joinToString(" · "),
@@ -485,7 +492,7 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
         key.user?.name?.let { parts += it }
         if (key.reusable) parts += stringResource(R.string.admin_reusable)
         if (key.ephemeral) parts += stringResource(R.string.admin_ephemeral)
-        key.expiration?.take(10)?.let { parts += it }
+        key.expiration?.take(10)?.takeIf { !isZeroTime(it) }?.let { parts += it }
         Text(
             parts.joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
@@ -596,18 +603,25 @@ private fun CreatePreAuthKeyDialog(
             Checkbox(checked = ephemeral, onCheckedChange = { ephemeral = it })
             Text(stringResource(R.string.admin_ephemeral))
           }
+          val daysValid = (days.toLongOrNull() ?: 0L) > 0
           OutlinedTextField(
               value = days,
               onValueChange = { days = it.filter(Char::isDigit) },
               label = { Text(stringResource(R.string.admin_expiration_days)) },
+              isError = !daysValid,
+              supportingText = if (daysValid) null else ({ Text(stringResource(R.string.admin_days_required)) }),
               singleLine = true)
         }
       },
       confirmButton = {
+        val daysValid = (days.toLongOrNull() ?: 0L) > 0
         TextButton(
-            enabled = user != null,
+            enabled = user != null && daysValid,
             onClick = {
-              user?.let { onCreate(it, reusable, ephemeral, days.toLongOrNull() ?: 0L) }
+              val selected = user
+              if (selected != null && daysValid) {
+                onCreate(selected, reusable, ephemeral, days.toLongOrNull() ?: 0L)
+              }
             }) {
               Text(stringResource(R.string.admin_create))
             }
@@ -730,6 +744,9 @@ private fun ConfirmDialog(
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
+
+/** Headscale reports "no expiry" as the zero timestamp; showing 0001-01-01 helps nobody. */
+private fun isZeroTime(isoDate: String) = isoDate.startsWith("0001-01-01")
 
 /** Pre-fill the API base URL from the configured admin console URL, if any. */
 private fun defaultBaseUrl(): String {

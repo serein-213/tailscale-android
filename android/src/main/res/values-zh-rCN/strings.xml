@@ -462,6 +462,7 @@
     <string name="admin_reusable">可复用</string>
     <string name="admin_ephemeral">临时节点</string>
     <string name="admin_expiration_days">有效期（天）</string>
+    <string name="admin_days_required">请填写正数天数</string>
     <string name="admin_create">创建</string>
     <string name="admin_action_expire">过期</string>
     <string name="admin_action_delete">删除</string>

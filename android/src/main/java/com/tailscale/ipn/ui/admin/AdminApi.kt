@@ -110,15 +110,10 @@ object AdminApi {
           else putString(PREF_KEY_BASE_URL, normalizeBaseUrl(baseUrl))
           if (apiKey.isNullOrBlank()) remove(PREF_KEY_API_KEY) else putString(PREF_KEY_API_KEY, apiKey.trim())
         }
-        .commit()
+        .apply()
   }
 
-  private fun normalizeBaseUrl(url: String): String {
-    var u = url.trim().trimEnd('/')
-    // Admin console URLs look like https://host/admin — the API lives on the host root.
-    if (u.endsWith("/admin")) u = u.removeSuffix("/admin")
-    return u
-  }
+  private fun normalizeBaseUrl(url: String): String = normalizeBaseUrlInternal(url)
 
   private fun prefs() = runCatching { App.get().getEncryptedPrefs() }
       .onFailure { TSLog.e(TAG, "encrypted prefs unavailable", it) }
@@ -149,10 +144,7 @@ object AdminApi {
 
   /** Replaces the node's tags; the "tag:" prefix is added when missing. */
   fun setNodeTags(id: String, tags: List<String>) {
-    val body =
-        json.encodeToString(
-            SetTagsRequest.serializer(),
-            SetTagsRequest(tags.map { if (it.startsWith("tag:")) it else "tag:$it" }))
+    val body = json.encodeToString(SetTagsRequest.serializer(), SetTagsRequest(normalizeTags(tags)))
     request("POST", "/api/v1/node/$id/tags", body)
   }
 
@@ -210,14 +202,55 @@ object AdminApi {
   internal fun parsePreAuthKeys(body: String): List<HsPreAuthKey> =
       json.decodeFromString<PreAuthKeysResponse>(body).preAuthKeys
 
-  // ------------------------------------------------------------- plumbing
+  // ------------------------------------------------------------- helpers (unit-tested)
 
-  private fun urlEncode(value: String) = URLEncoder.encode(value, "UTF-8")
+  /**
+   * Percent-encodes a path segment. [URLEncoder] is form-encoding, so it emits "+" for spaces,
+   * which the server would read literally in a path; spaces must be "%20".
+   */
+  internal fun urlEncode(value: String) = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
+
+  /** Adds the required "tag:" prefix and drops duplicates. */
+  internal fun normalizeTags(tags: List<String>): List<String> =
+      tags.map { it.trim() }
+          .filter { it.isNotEmpty() }
+          .map { if (it.startsWith("tag:")) it else "tag:$it" }
+          .distinct()
+
+  /**
+   * Accepts what users paste for the API base: the admin console URL, the API URL itself, or a
+   * bare host. The API always lives at the server root.
+   */
+  internal fun normalizeBaseUrlInternal(url: String): String {
+    var u = url.trim().trimEnd('/')
+    if (u.isEmpty()) return u
+    if (!u.contains("://")) u = "https://$u"
+    for (suffix in listOf("/admin", "/api/v1", "/api")) {
+      if (u.endsWith(suffix)) {
+        u = u.removeSuffix(suffix).trimEnd('/')
+        break
+      }
+    }
+    return u
+  }
+
+  // ------------------------------------------------------------- plumbing
 
   /** Performs a request and returns the raw response body ("" for empty responses). */
   private fun request(method: String, path: String, body: String? = null): String {
     val base = baseUrl() ?: throw IOException("Admin API base URL is not configured")
     val key = apiKey() ?: throw IOException("Admin API key is not configured")
+    return requestWith(method, path, body, base, key)
+  }
+
+  /** Transport, with the connection settings injected so it can be tested on the JVM. */
+  internal fun requestWith(
+      method: String,
+      path: String,
+      body: String?,
+      base: String,
+      key: String,
+  ): String {
 
     val conn = URL("$base$path").openConnection() as HttpURLConnection
     try {

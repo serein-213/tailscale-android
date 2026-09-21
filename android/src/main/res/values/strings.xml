@@ -460,6 +460,7 @@
     <string name="admin_reusable">Reusable</string>
     <string name="admin_ephemeral">Ephemeral</string>
     <string name="admin_expiration_days">Expiration (days)</string>
+    <string name="admin_days_required">Enter a positive number of days</string>
     <string name="admin_create">Create</string>
     <string name="admin_action_expire">Expire</string>
     <string name="admin_action_delete">Delete</string>
