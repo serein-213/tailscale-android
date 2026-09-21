@@ -260,22 +260,26 @@ object Setting {
 
     AnimatedRow(visible = !(hiddenNow && !revealing), divider = hideable && divider) {
       var modifier: Modifier = Modifier
-      if (enabled) {
-        onClick?.let { click ->
-          val longPress =
-              onLongClick
-                  ?: if (hideable && rowKey != null) {
-                    { HiddenSettings.toggleHidden(rowKey) }
+      when {
+        // While hidden rows are revealed, a tap brings the row back: no confirmation either way.
+        hiddenNow && revealing && rowKey != null ->
+            modifier = modifier.clickable { HiddenSettings.toggleHidden(rowKey) }
+        enabled ->
+            onClick?.let { click ->
+              val longPress =
+                  onLongClick
+                      ?: if (hideable && rowKey != null) {
+                        { HiddenSettings.toggleHidden(rowKey) }
+                      } else {
+                        null
+                      }
+              modifier =
+                  if (longPress != null) {
+                    modifier.combinedClickable(onClick = click, onLongClick = longPress)
                   } else {
-                    null
+                    modifier.clickable(onClick = click)
                   }
-          modifier =
-              if (longPress != null) {
-                modifier.combinedClickable(onClick = click, onLongClick = longPress)
-              } else {
-                modifier.clickable(onClick = click)
-              }
-        }
+            }
       }
       Box(modifier.then(if (hiddenNow) Modifier.alpha(0.45f) else Modifier)) {
         ListItem(
@@ -337,8 +341,12 @@ object Setting {
     AnimatedRow(visible = !(hiddenNow && !revealing), divider = hideable) {
     Box(
         Modifier.then(
-            if (hiddenNow) Modifier.alpha(0.45f)
-            else if (hideable && rowKey != null) {
+            if (hiddenNow) {
+              // Revealed-but-hidden rows come back on a single tap.
+              Modifier.alpha(0.45f).clickable(enabled = rowKey != null) {
+                rowKey?.let { HiddenSettings.toggleHidden(it) }
+              }
+            } else if (hideable && rowKey != null) {
               Modifier.combinedClickable(
                   onClick = {}, onLongClick = { HiddenSettings.toggleHidden(rowKey) })
             } else {

@@ -480,7 +480,7 @@
     <string name="admin_no_route_nodes">暂无设备通告路由。</string>
     <string name="admin_exit_node">出口节点</string>
     <string name="admin_tags_none">该用户没有归属标签</string>
-    <string name="settings_show_hidden_hint">正在显示已隐藏项，再次长按「关于」退出</string>
+    <string name="settings_show_hidden_hint">正在显示已隐藏项：单击可恢复，再次长按「关于」退出</string>
     <string name="admin_key_status_all">全部</string>
     <string name="admin_key_status_usable">可用</string>
     <string name="admin_key_status_used">已使用</string>
@@ -489,6 +489,7 @@
     <string name="admin_no_keys">没有符合筛选条件的密钥。</string>
     <string name="admin_policy_tab">策略</string>
     <string name="admin_routes_approved">已批准 %1$d/%2$d</string>
+    <string name="admin_copy">复制</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>

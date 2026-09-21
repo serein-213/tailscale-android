@@ -478,7 +478,7 @@
     <string name="admin_no_route_nodes">No device advertises routes yet.</string>
     <string name="admin_exit_node">Exit node</string>
     <string name="admin_tags_none">No tags owned by this user</string>
-    <string name="settings_show_hidden_hint">Showing hidden rows - long-press About again to exit</string>
+    <string name="settings_show_hidden_hint">Showing hidden rows - tap one to restore it, long-press About to exit</string>
     <string name="admin_key_status_all">All</string>
     <string name="admin_key_status_usable">Usable</string>
     <string name="admin_key_status_used">Used</string>
@@ -487,6 +487,7 @@
     <string name="admin_no_keys">No keys match this filter.</string>
     <string name="admin_policy_tab">Policy</string>
     <string name="admin_routes_approved">%1$d/%2$d approved</string>
+    <string name="admin_copy">Copy</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

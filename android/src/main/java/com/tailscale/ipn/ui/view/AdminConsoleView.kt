@@ -702,7 +702,7 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
           }
           DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.copy_to_clipboard)) },
+                text = { Text(stringResource(R.string.admin_copy)) },
                 onClick = {
                   menuOpen = false
                   clipboard.setText(AnnotatedString(key.key))
@@ -954,16 +954,17 @@ private fun RouteNodeBlock(
                 val next = if (approved) node.approvedRoutes - route else node.approvedRoutes + route
                 onApply(routes.filter { it in next })
               }
-              .padding(start = 6.dp, end = 16.dp, top = 1.dp, bottom = 1.dp),
+              .padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
           verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = approved, onCheckedChange = null)
             Text(
                 route,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
                 color =
                     if (approved) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant)
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f))
+            Checkbox(checked = approved, onCheckedChange = null)
           }
     }
     Spacer(Modifier.size(6.dp))

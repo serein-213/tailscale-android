@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -76,10 +78,12 @@ fun AdminPolicyTab(policyText: String, updatedAt: String?, loading: Boolean) {
                 onClick = { showRaw = true })
           }
           Box(Modifier.weight(1f))
-          TextButton(
+          IconButton(
               enabled = policyText.isNotEmpty(),
               onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
-                Text(stringResource(R.string.copy_to_clipboard), color = MaterialTheme.colorScheme.link)
+                Icon(
+                    painter = painterResource(R.drawable.clipboard),
+                    contentDescription = stringResource(R.string.copy_to_clipboard))
               }
         }
     updatedAt?.let {
