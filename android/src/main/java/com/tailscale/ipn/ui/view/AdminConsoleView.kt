@@ -276,8 +276,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                     }
                 else -> {
                   LaunchedEffect(Unit) { if (policy == null) loadPolicy() }
-                  PolicyTabContent(
-                      text = policy?.policy.orEmpty(),
+                  AdminPolicyTab(
+                      policyText = policy?.policy.orEmpty(),
                       updatedAt = policy?.updatedAt,
                       loading = policyLoading)
                 }
@@ -799,35 +799,6 @@ private fun ConnectionDialog(
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
-}
-
-@Composable
-private fun PolicyTabContent(text: String, updatedAt: String?, loading: Boolean) {
-  val clipboard = LocalClipboardManager.current
-  if (text.isEmpty() && loading) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-      CircularProgressIndicator(Modifier.size(32.dp))
-    }
-    return
-  }
-  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      TextButton(enabled = text.isNotEmpty(), onClick = { clipboard.setText(AnnotatedString(text)) }) {
-        Text(stringResource(R.string.copy_to_clipboard), color = MaterialTheme.colorScheme.link)
-      }
-      updatedAt?.let {
-        Text(
-            stringResource(R.string.admin_policy_updated, it.replace("T", " ").take(19)),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-    }
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        fontFamily = FontFamily.Monospace,
-        modifier = Modifier.padding(top = 8.dp))
-  }
 }
 
 @Composable
