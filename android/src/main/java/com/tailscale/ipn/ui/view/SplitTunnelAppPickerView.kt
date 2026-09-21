@@ -145,7 +145,10 @@ fun SplitTunnelAppPickerView(
                         if (allowSelected) R.string.selected_apps_will_access_tailscale
                         else
                             R.string
-                                .selected_apps_will_access_the_internet_directly_without_using_tailscale))
+                                .selected_apps_will_access_the_internet_directly_without_using_tailscale),
+                    // Same size/colour as the "manage your tailnet settings" row.
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
               })
         }
         item("resolversHeader") {
