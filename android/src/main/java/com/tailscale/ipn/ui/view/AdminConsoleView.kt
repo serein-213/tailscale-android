@@ -17,11 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -61,6 +64,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminApi
+import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
 import com.tailscale.ipn.ui.util.LoadingIndicator
@@ -69,6 +73,7 @@ import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
 
 /**
  * In-app tailnet administration (read + the common write actions) backed by the Headscale
@@ -91,6 +96,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   val users = remember { mutableStateListOf<AdminApi.HsUser>() }
 
   var selectedTab by remember { mutableIntStateOf(0) }
+  var expandedUser by remember { mutableStateOf<String?>(null) }
   var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
   var policyLoading by remember { mutableStateOf(false) }
@@ -98,7 +104,6 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var pendingExpire by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingDelete by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingRename by remember { mutableStateOf<AdminApi.HsNode?>(null) }
-  var pendingRoutes by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingTags by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingExpireKey by remember { mutableStateOf<AdminApi.HsPreAuthKey?>(null) }
   var pendingRenameUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
@@ -162,6 +167,10 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         false
       }
 
+  /** Devices that advertise or already have routes: the route page is about these. */
+  val routableNodes =
+      nodes.filter { it.availableRoutes.isNotEmpty() || it.approvedRoutes.isNotEmpty() }
+
   LaunchedEffect(configured) {
     if (configured && nodes.isEmpty() && !busy) reload()
   }
@@ -224,6 +233,10 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
+                    text = { Text("${stringResource(R.string.admin_routes_short)} (${routableNodes.size})") })
+                Tab(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
                     text = { Text(stringResource(R.string.admin_policy)) })
               }
 
@@ -235,7 +248,6 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                             node = node,
                             busy = busy,
                             onRename = { pendingRename = node },
-                            onRoutes = { pendingRoutes = node },
                             onTags = { pendingTags = node },
                             onExpire = { pendingExpire = node },
                             onDelete = { pendingDelete = node })
@@ -246,6 +258,16 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                       items(users, key = { it.id }) { user ->
                         UserRow(
                             user = user,
+                            expanded = expandedUser == user.id,
+                            devices = nodes.filter { it.user?.name == user.name },
+                            keys = keys.filter { it.user?.name == user.name },
+                            tags = tagsOwnedBy(policy, user),
+                            onToggleExpanded = {
+                              val opening = expandedUser != user.id
+                              expandedUser = if (opening) user.id else null
+                              // Tag ownership lives in the policy, which is loaded on demand.
+                              if (opening && policy == null) loadPolicy()
+                            },
                             onRename = { pendingRenameUser = user },
                             onDelete = { pendingDeleteUser = user })
                       }
@@ -272,6 +294,28 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                                   stringResource(R.string.admin_new_preauth_key),
                                   color = MaterialTheme.colorScheme.link)
                             }
+                      }
+                    }
+                3 ->
+                    LazyColumn(Modifier.fillMaxSize()) {
+                      if (routableNodes.isEmpty()) {
+                        item("noRoutes") {
+                          Text(
+                              stringResource(R.string.admin_no_route_nodes),
+                              style = MaterialTheme.typography.bodyMedium,
+                              color = MaterialTheme.colorScheme.onSurfaceVariant,
+                              modifier = Modifier.padding(16.dp))
+                        }
+                      }
+                      items(routableNodes, key = { it.id }) { node ->
+                        RouteNodeBlock(
+                            node = node,
+                            busy = busy,
+                            onApply = { routes ->
+                              scope.launch {
+                                if (runAction { AdminApi.approveRoutes(node.id, routes) }) reload()
+                              }
+                            })
                       }
                     }
                 else -> {
@@ -341,18 +385,6 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
           pendingRename = null
           scope.launch {
             if (runAction { AdminApi.renameNode(node.id, newName) }) reload()
-          }
-        })
-  }
-
-  pendingRoutes?.let { node ->
-    NodeRoutesDialog(
-        node = node,
-        onDismiss = { pendingRoutes = null },
-        onApply = { routes ->
-          pendingRoutes = null
-          scope.launch {
-            if (runAction { AdminApi.approveRoutes(node.id, routes) }) reload()
           }
         })
   }
@@ -459,7 +491,6 @@ private fun NodeRow(
     onExpire: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
-    onRoutes: () -> Unit,
     onTags: () -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
@@ -500,12 +531,6 @@ private fun NodeRow(
                   onRename()
                 })
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_routes)) },
-                onClick = {
-                  menuOpen = false
-                  onRoutes()
-                })
-            DropdownMenuItem(
                 text = { Text(stringResource(R.string.admin_node_tags)) },
                 onClick = {
                   menuOpen = false
@@ -539,16 +564,33 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
         Text(key.key, style = MaterialTheme.typography.bodySmall, maxLines = 2)
       },
       supportingContent = {
-        val parts = mutableListOf<String>()
-        key.user?.name?.let { parts += it }
-        if (key.reusable) parts += stringResource(R.string.admin_reusable)
-        if (key.ephemeral) parts += stringResource(R.string.admin_ephemeral)
-        key.expiration?.take(10)?.takeIf { !isZeroTime(it) }?.let { parts += it }
-        Text(
-            parts.joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2)
+        Column {
+          val parts = mutableListOf<String>()
+          key.user?.name?.let { parts += it }
+          if (key.reusable) parts += stringResource(R.string.admin_reusable)
+          if (key.ephemeral) parts += stringResource(R.string.admin_ephemeral)
+          if (parts.isNotEmpty()) {
+            Text(
+                parts.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1)
+          }
+          val created = key.createdAt?.take(10)?.takeIf { !isZeroTime(it) }
+          val expires = key.expiration?.take(10)?.takeIf { !isZeroTime(it) }
+          val times =
+              buildList {
+                created?.let { add("${stringResource(R.string.admin_created_at)} $it") }
+                expires?.let { add("${stringResource(R.string.admin_expires_at)} $it") }
+              }
+          if (times.isNotEmpty()) {
+            Text(
+                times.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1)
+          }
+        }
       },
       trailingContent = {
         Box {
@@ -578,35 +620,108 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
 @Composable
 private fun UserRow(
     user: AdminApi.HsUser,
+    expanded: Boolean,
+    devices: List<AdminApi.HsNode>,
+    keys: List<AdminApi.HsPreAuthKey>,
+    tags: List<String>,
+    onToggleExpanded: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
   ListItem(
       headlineContent = { Text(user.name, style = MaterialTheme.typography.bodyMedium) },
+      supportingContent = {
+        val parts =
+            mutableListOf(
+                "${stringResource(R.string.admin_nodes)} ${devices.size}",
+                "${stringResource(R.string.admin_keys_short)} ${keys.size}")
+        if (tags.isNotEmpty()) {
+          parts += "${stringResource(R.string.admin_node_tags)} ${tags.size}"
+        }
+        Text(
+            parts.joinToString(" · "),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+      },
       trailingContent = {
-        Box {
-          IconButton(onClick = { menuOpen = true }) {
-            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_user_actions))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          IconButton(onClick = onToggleExpanded) {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null)
           }
-          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_action_rename)) },
-                onClick = {
-                  menuOpen = false
-                  onRename()
-                })
-            DropdownMenuItem(
-                text = {
-                  Text(stringResource(R.string.admin_action_delete), color = MaterialTheme.colorScheme.error)
-                },
-                onClick = {
-                  menuOpen = false
-                  onDelete()
-                })
+          Box {
+            IconButton(onClick = { menuOpen = true }) {
+              Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_user_actions))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+              DropdownMenuItem(
+                  text = { Text(stringResource(R.string.admin_action_rename)) },
+                  onClick = {
+                    menuOpen = false
+                    onRename()
+                  })
+              DropdownMenuItem(
+                  text = {
+                    Text(stringResource(R.string.admin_action_delete), color = MaterialTheme.colorScheme.error)
+                  },
+                  onClick = {
+                    menuOpen = false
+                    onDelete()
+                  })
+            }
           }
         }
       })
+
+  if (!expanded) return
+
+  if (devices.isNotEmpty()) {
+    Lists.MutedHeader(text = stringResource(R.string.admin_nodes))
+    devices.forEach { node ->
+      DetailLine(text = node.displayName, trailing = node.ipAddresses.firstOrNull())
+    }
+  }
+  if (keys.isNotEmpty()) {
+    Lists.MutedHeader(text = stringResource(R.string.admin_preauth_keys))
+    keys.forEach { key ->
+      DetailLine(
+          text = key.key,
+          trailing = key.expiration?.take(10)?.takeIf { !isZeroTime(it) })
+    }
+  }
+  Lists.MutedHeader(text = stringResource(R.string.admin_node_tags))
+  if (tags.isEmpty()) {
+    Text(
+        stringResource(R.string.admin_tags_none),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 28.dp, bottom = 6.dp))
+  } else {
+    tags.forEach { tag -> DetailLine(text = tag, trailing = null) }
+  }
+}
+
+@Composable
+private fun DetailLine(text: String, trailing: String?) {
+  Row(
+      Modifier.fillMaxWidth().padding(start = 28.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f))
+        trailing?.let {
+          Text(
+              it,
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
 }
 
 @Composable
@@ -680,79 +795,68 @@ private fun CreatePreAuthKeyDialog(
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
 
-/** Routes advertised by a subnet router / exit node; the API replaces the approved set. */
+/** One device's advertised routes, toggled in place; the API takes the whole approved set. */
 @Composable
-private fun NodeRoutesDialog(
+private fun RouteNodeBlock(
     node: AdminApi.HsNode,
-    onDismiss: () -> Unit,
+    busy: Boolean,
     onApply: (List<String>) -> Unit,
 ) {
-  val all = remember(node) { (node.availableRoutes + node.approvedRoutes).distinct().sorted() }
-  val selected = remember(node) { mutableStateListOf<String>().apply { addAll(node.approvedRoutes) } }
+  val routes = remember(node) { (node.availableRoutes + node.approvedRoutes).distinct().sorted() }
+  val isExitNode =
+      remember(node) { node.approvedRoutes.any { it == "0.0.0.0/0" || it == "::/0" } }
 
-  AlertDialog(
-      onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.admin_routes)) },
-      text = {
-        if (all.isEmpty()) {
-          Text(
-              stringResource(R.string.admin_no_routes),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-          Column(Modifier.verticalScroll(rememberScrollState())) {
-            all.forEach { route ->
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = selected.contains(route),
-                    onCheckedChange = { checked ->
-                      if (checked) selected.add(route) else selected.remove(route)
-                    })
-                Text(route, style = MaterialTheme.typography.bodyMedium)
-              }
+  Column(Modifier.fillMaxWidth()) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+          Box(
+              Modifier.size(10.dp)
+                  .background(
+                      if (node.online) MaterialTheme.colorScheme.primary
+                      else MaterialTheme.colorScheme.outlineVariant,
+                      CircleShape))
+          Column(Modifier.padding(start = 10.dp).weight(1f)) {
+            Text(node.displayName, style = MaterialTheme.typography.bodyMedium)
+            node.user?.name?.takeIf { it.isNotBlank() }?.let {
+              Text(
+                  it,
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
-        }
-      },
-      confirmButton = {
-        TextButton(onClick = { onApply(selected.toList()) }) {
-          Text(stringResource(R.string.admin_save))
-        }
-      },
-      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
-}
-
-@Composable
-private fun TextInputDialog(
-    @StringRes titleRes: Int,
-    initial: String,
-    @StringRes confirmLabelRes: Int,
-    subtitle: String? = null,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-  var value by remember { mutableStateOf(initial) }
-  AlertDialog(
-      onDismissRequest = onDismiss,
-      title = { Text(stringResource(titleRes)) },
-      text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          subtitle?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+          if (isExitNode) {
+            Box(
+                Modifier.background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                        RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 2.dp)) {
+                  Text(
+                      stringResource(R.string.admin_exit_node),
+                      style = MaterialTheme.typography.labelMedium,
+                      color = MaterialTheme.colorScheme.primary)
+                }
           }
-          OutlinedTextField(
-              value = value, onValueChange = { value = it }, singleLine = true)
         }
-      },
-      confirmButton = {
-        TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value.trim()) }) {
-          Text(stringResource(confirmLabelRes))
-        }
-      },
-      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+    routes.forEach { route ->
+      val approved = node.approvedRoutes.contains(route)
+      Row(
+          Modifier.fillMaxWidth()
+              .clickable(enabled = !busy) {
+                val next = if (approved) node.approvedRoutes - route else node.approvedRoutes + route
+                onApply(routes.filter { it in next })
+              }
+              .padding(end = 16.dp),
+          verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = approved, onCheckedChange = null)
+            Text(
+                route,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace)
+          }
+    }
+    Lists.ItemDivider()
+  }
 }
 
 @Composable
@@ -802,6 +906,38 @@ private fun ConnectionDialog(
 }
 
 @Composable
+private fun TextInputDialog(
+    @StringRes titleRes: Int,
+    initial: String,
+    @StringRes confirmLabelRes: Int,
+    subtitle: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+  var value by remember { mutableStateOf(initial) }
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(titleRes)) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          subtitle?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          OutlinedTextField(value = value, onValueChange = { value = it }, singleLine = true)
+        }
+      },
+      confirmButton = {
+        TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value.trim()) }) {
+          Text(stringResource(confirmLabelRes))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
 private fun ConfirmDialog(
     title: String,
     message: String,
@@ -819,6 +955,30 @@ private fun ConfirmDialog(
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+/**
+ * Tags whose owner list names this user, directly or through one of the groups they belong to.
+ * Returns nothing until the policy has been fetched.
+ */
+private fun tagsOwnedBy(policy: AdminApi.HsPolicy?, user: AdminApi.HsUser): List<String> {
+  val doc = policy?.let { PolicyDoc.parse(it.policy) } ?: return emptyList()
+  val owners = doc["tagOwners"] as? JsonObject ?: return emptyList()
+  val groups = doc["groups"] as? JsonObject
+
+  fun matches(owner: String): Boolean {
+    if (owner == user.name) return true
+    if (!owner.startsWith("group:")) return false
+    val members = groups?.get(owner) ?: return false
+    return PolicyDoc.stringsOf(members).any {
+      it == user.name || (user.email.isNotBlank() && it.equals(user.email, ignoreCase = true))
+    }
+  }
+
+  return owners.entries
+      .filter { (_, value) -> PolicyDoc.stringsOf(value).any(::matches) }
+      .map { it.key }
+      .sorted()
 }
 
 /** Headscale reports "no expiry" as the zero timestamp; showing 0001-01-01 helps nobody. */

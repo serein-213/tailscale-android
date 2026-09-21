@@ -139,6 +139,7 @@ class AdminApiParsingTest {
     assertTrue(key.reusable)
     assertFalse(key.ephemeral)
     assertEquals("2026-02-25T07:47:00Z", key.expiration)
+    assertEquals("2026-02-25T06:47:59.948224731Z", key.createdAt)
     assertTrue(key.key.startsWith("hskey-auth-"))
   }
 }

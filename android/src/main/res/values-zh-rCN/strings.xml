@@ -474,6 +474,12 @@
     <string name="policy_field_action">动作</string>
     <string name="policy_field_accept">允许</string>
     <string name="policy_field_deny">拒绝</string>
+    <string name="admin_created_at">创建</string>
+    <string name="admin_expires_at">过期</string>
+    <string name="admin_routes_short">路由</string>
+    <string name="admin_no_route_nodes">暂无设备通告路由。</string>
+    <string name="admin_exit_node">出口节点</string>
+    <string name="admin_tags_none">该用户没有归属标签</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>

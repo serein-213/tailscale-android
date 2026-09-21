@@ -472,6 +472,12 @@
     <string name="policy_field_action">Action</string>
     <string name="policy_field_accept">Allows</string>
     <string name="policy_field_deny">Denies</string>
+    <string name="admin_created_at">Created</string>
+    <string name="admin_expires_at">Expires</string>
+    <string name="admin_routes_short">Routes</string>
+    <string name="admin_no_route_nodes">No device advertises routes yet.</string>
+    <string name="admin_exit_node">Exit node</string>
+    <string name="admin_tags_none">No tags owned by this user</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

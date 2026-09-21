@@ -32,7 +32,7 @@ object AdminApi {
   // ---------------------------------------------------------------- models
 
   @Serializable
-  data class HsUser(val id: String = "", val name: String = "")
+  data class HsUser(val id: String = "", val name: String = "", val email: String = "")
 
   @Serializable
   data class HsNode(
@@ -63,6 +63,7 @@ object AdminApi {
       val ephemeral: Boolean = false,
       val used: Boolean = false,
       val expiration: String? = null,
+      val createdAt: String? = null,
   )
 
   @Serializable private data class NodesResponse(val nodes: List<HsNode> = emptyList())
