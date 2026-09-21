@@ -3,6 +3,13 @@
 
 package com.tailscale.ipn.ui.view
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -19,8 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -117,12 +122,10 @@ fun SettingsView(
                 onNavigateToSettings = settingsNav.onNavigateToCustomControl)
           }
 
-          Lists.ItemDivider()
           Setting.Text(R.string.in_app_admin,
 
             hideable = true, onClick = settingsNav.onNavigateToAdmin)
 
-          Lists.ItemDivider()
           Setting.Text(
               R.string.dns_settings,
                 hideable = true,
@@ -133,7 +136,6 @@ fun SettingsView(
                   },
               onClick = settingsNav.onNavigateToDNSSettings)
 
-          Lists.ItemDivider()
           Setting.Text(
               R.string.split_tunneling,
                 hideable = true,
@@ -141,7 +143,6 @@ fun SettingsView(
               onClick = settingsNav.onNavigateToSplitTunneling)
 
           if (showTailnetLock.value == ShowHide.Show) {
-            Lists.ItemDivider()
             Setting.Text(
                 R.string.tailnet_lock,
                   hideable = true,
@@ -152,12 +153,10 @@ fun SettingsView(
                 onClick = settingsNav.onNavigateToTailnetLock)
           }
           if (useTailscaleSubnets.value == AlwaysNeverUserDecides.UserDecides) {
-            Lists.ItemDivider()
             Setting.Text(R.string.subnet_routing,
             hideable = true, onClick = settingsNav.onNavigateToSubnetRouting)
           }
 
-          Lists.ItemDivider()
           Setting.Switch(
               R.string.client_remote_logging_enabled,
                 hideable = true,
@@ -177,10 +176,8 @@ fun SettingsView(
               })
 
           if (!AndroidTVUtil.isAndroidTV()) {
-            Lists.ItemDivider()
             Setting.Text(R.string.permissions,
               hideable = true, onClick = settingsNav.onNavigateToPermissions)
-            Lists.ItemDivider()
             Setting.Text(R.string.theme_setting,
             hideable = true, onClick = settingsNav.onNavigateToThemeSettings)
           }
@@ -193,7 +190,6 @@ fun SettingsView(
                 onClick = settingsNav.onNavigateToManagedBy)
           }
 
-          Lists.ItemDivider()
           Setting.Text(
               R.string.about_tailscale,
               subtitle = "${stringResource(id = R.string.version)} ${AppVersion.Short()}",
@@ -208,6 +204,7 @@ fun SettingsView(
             Setting.Text(
                 R.string.mdm_settings,
                 hideable = true,
+                divider = false,
                 onClick = settingsNav.onNavigateToMDMSettings)
           }
         }
@@ -240,7 +237,7 @@ fun SettingsView(
 object Setting {
   @Composable
   /**
-   * A settings row. When [hideable], long-pressing offers to hide it; hidden rows come back by
+   * A settings row. When [hideable], long-pressing hides it immediately; hidden rows come back by
    * long-pressing About. Rows with a dynamic title must pass an explicit [hideId].
    */
   @OptIn(ExperimentalFoundationApi::class)
@@ -252,6 +249,7 @@ object Setting {
       enabled: Boolean = true,
       hideable: Boolean = false,
       hideId: String? = null,
+      divider: Boolean = true,
       onLongClick: (() -> Unit)? = null,
       onClick: (() -> Unit)? = null
   ) {
@@ -259,61 +257,64 @@ object Setting {
     val hiddenRows by HiddenSettings.hidden.collectAsState()
     val revealing by HiddenSettings.revealing.collectAsState()
     val hiddenNow = hideable && rowKey != null && rowKey in hiddenRows
-    if (hiddenNow && !revealing) return
 
-    var modifier: Modifier = Modifier
-    if (enabled) {
-      onClick?.let { click ->
-        val longPress =
-            onLongClick
-                ?: if (hideable && rowKey != null) {
-                  { HiddenSettings.openMenu(rowKey) }
-                } else {
-                  null
-                }
-        modifier =
-            if (longPress != null) {
-              modifier.combinedClickable(onClick = click, onLongClick = longPress)
-            } else {
-              modifier.clickable(onClick = click)
-            }
+    AnimatedRow(visible = !(hiddenNow && !revealing), divider = hideable && divider) {
+      var modifier: Modifier = Modifier
+      if (enabled) {
+        onClick?.let { click ->
+          val longPress =
+              onLongClick
+                  ?: if (hideable && rowKey != null) {
+                    { HiddenSettings.toggleHidden(rowKey) }
+                  } else {
+                    null
+                  }
+          modifier =
+              if (longPress != null) {
+                modifier.combinedClickable(onClick = click, onLongClick = longPress)
+              } else {
+                modifier.clickable(onClick = click)
+              }
+        }
       }
-    }
-    Box(modifier.then(if (hiddenNow) Modifier.alpha(0.45f) else Modifier)) {
-      ListItem(
-          colors = MaterialTheme.colorScheme.listItem,
-          headlineContent = {
-            Text(
-                title ?: stringResource(titleRes),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified)
-          },
-          supportingContent =
-              subtitle?.let {
-                {
-                  Text(
-                      it,
-                      style = MaterialTheme.typography.bodySmall,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-              })
-      if (hideable && rowKey != null) RowHideMenu(rowKey = rowKey, hidden = hiddenNow)
+      Box(modifier.then(if (hiddenNow) Modifier.alpha(0.45f) else Modifier)) {
+        ListItem(
+            colors = MaterialTheme.colorScheme.listItem,
+            headlineContent = {
+              Text(
+                  title ?: stringResource(titleRes),
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified)
+            },
+            supportingContent =
+                subtitle?.let {
+                  {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  }
+                })
+      }
     }
   }
 
-  /** Long-press menu offering to hide, or bring back, a row. */
+  /** Collapses and fades a row away (and back), divider included, so the list closes the gap. */
   @Composable
-  private fun RowHideMenu(rowKey: String, hidden: Boolean) {
-    val menuFor by HiddenSettings.menuFor.collectAsState()
-    DropdownMenu(expanded = menuFor == rowKey, onDismissRequest = { HiddenSettings.closeMenu() }) {
-      DropdownMenuItem(
-          text = {
-            Text(
-                stringResource(
-                    if (hidden) R.string.settings_unhide_row else R.string.settings_hide_row))
-          },
-          onClick = { HiddenSettings.toggleHidden(rowKey) })
-    }
+  private fun AnimatedRow(visible: Boolean, divider: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter =
+            expandVertically(animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing)) +
+                fadeIn(animationSpec = tween(durationMillis = 180)),
+        exit =
+            shrinkVertically(animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)) +
+                fadeOut(animationSpec = tween(durationMillis = 150))) {
+          Column {
+            if (divider) Lists.ItemDivider()
+            content()
+          }
+        }
   }
 
   @Composable
@@ -332,14 +333,14 @@ object Setting {
     val hiddenRows by HiddenSettings.hidden.collectAsState()
     val revealing by HiddenSettings.revealing.collectAsState()
     val hiddenNow = hideable && rowKey != null && rowKey in hiddenRows
-    if (hiddenNow && !revealing) return
 
+    AnimatedRow(visible = !(hiddenNow && !revealing), divider = hideable) {
     Box(
         Modifier.then(
             if (hiddenNow) Modifier.alpha(0.45f)
             else if (hideable && rowKey != null) {
               Modifier.combinedClickable(
-                  onClick = {}, onLongClick = { HiddenSettings.openMenu(rowKey) })
+                  onClick = {}, onLongClick = { HiddenSettings.toggleHidden(rowKey) })
             } else {
               Modifier
             })) {
@@ -363,7 +364,7 @@ object Setting {
         trailingContent = {
           TintedSwitch(checked = isOn, onCheckedChange = onToggle, enabled = enabled)
         })
-      if (hideable && rowKey != null) RowHideMenu(rowKey = rowKey, hidden = hiddenNow)
+    }
     }
   }
 }

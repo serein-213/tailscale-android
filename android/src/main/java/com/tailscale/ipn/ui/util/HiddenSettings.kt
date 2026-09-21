@@ -23,26 +23,13 @@ object HiddenSettings {
   private val _revealing = MutableStateFlow(false)
   val revealing: StateFlow<Boolean> = _revealing
 
-  /** Row whose long-press menu is open (one at a time). */
-  private val _menuFor = MutableStateFlow<String?>(null)
-  val menuFor: StateFlow<String?> = _menuFor
-
   fun toggleReveal() {
     _revealing.value = !_revealing.value
-    _menuFor.value = null
   }
 
-  fun openMenu(id: String) {
-    _menuFor.value = id
-  }
-
-  fun closeMenu() {
-    _menuFor.value = null
-  }
-
+  /** Long-press toggles straight away: hiding needs no confirmation. */
   fun toggleHidden(id: String) {
     setHidden(id, id !in _hidden.value)
-    _menuFor.value = null
   }
 
   fun init(context: Context) {
