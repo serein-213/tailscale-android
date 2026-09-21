@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,7 +90,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   val keys = remember { mutableStateListOf<AdminApi.HsPreAuthKey>() }
   val users = remember { mutableStateListOf<AdminApi.HsUser>() }
 
-  var selectedTab by remember { mutableStateOf(0) }
+  var selectedTab by remember { mutableIntStateOf(0) }
   var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
   var policyLoading by remember { mutableStateOf(false) }
