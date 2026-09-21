@@ -478,6 +478,9 @@
     <string name="admin_no_route_nodes">No device advertises routes yet.</string>
     <string name="admin_exit_node">Exit node</string>
     <string name="admin_tags_none">No tags owned by this user</string>
+    <string name="settings_hide_row">Hide this row</string>
+    <string name="settings_unhide_row">Unhide this row</string>
+    <string name="settings_show_hidden_hint">Showing hidden rows - long-press About again to exit</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

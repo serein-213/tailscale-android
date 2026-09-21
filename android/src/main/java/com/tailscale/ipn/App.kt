@@ -117,6 +117,7 @@ class App : UninitializedApp(), libtailscale.AppContext, ViewModelStoreOwner {
     TSLog.init(this)
     com.tailscale.ipn.ui.theme.ThemeConfig.init(this)
     com.tailscale.ipn.ui.util.ServerConfig.init(this)
+    com.tailscale.ipn.ui.util.HiddenSettings.init(this)
     appInstance = this
     setUnprotectedInstance(this)
     mdmChangeReceiver = MDMSettingsChangedReceiver()

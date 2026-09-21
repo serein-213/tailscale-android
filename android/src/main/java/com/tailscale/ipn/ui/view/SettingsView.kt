@@ -3,7 +3,9 @@
 
 package com.tailscale.ipn.ui.view
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -54,6 +59,7 @@ import com.tailscale.ipn.ui.theme.listItem
 import androidx.compose.material3.RadioButton
 import com.tailscale.ipn.App
 import com.tailscale.ipn.ui.util.AndroidTVUtil
+import com.tailscale.ipn.ui.util.HiddenSettings
 import com.tailscale.ipn.ui.util.AndroidTVUtil.isAndroidTV
 import com.tailscale.ipn.ui.util.AppVersion
 import com.tailscale.ipn.ui.util.Lists
@@ -87,6 +93,14 @@ fun SettingsView(
         Header(titleRes = R.string.settings_title, onBack = settingsNav.onNavigateBackHome)
       }) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).verticalScroll(rememberScrollState())) {
+          val revealingRows by HiddenSettings.revealing.collectAsState()
+          if (revealingRows) {
+            Text(
+                stringResource(R.string.settings_show_hidden_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+          }
           if (isVPNPrepared) {
             UserView(
                 profile = user,
@@ -104,11 +118,14 @@ fun SettingsView(
           }
 
           Lists.ItemDivider()
-          Setting.Text(R.string.in_app_admin, onClick = settingsNav.onNavigateToAdmin)
+          Setting.Text(R.string.in_app_admin,
+
+            hideable = true, onClick = settingsNav.onNavigateToAdmin)
 
           Lists.ItemDivider()
           Setting.Text(
               R.string.dns_settings,
+                hideable = true,
               subtitle =
                   corpDNSEnabled?.let {
                     stringResource(
@@ -119,6 +136,7 @@ fun SettingsView(
           Lists.ItemDivider()
           Setting.Text(
               R.string.split_tunneling,
+                hideable = true,
               subtitle = stringResource(R.string.filter_apps_allowed_to_access_tailscale),
               onClick = settingsNav.onNavigateToSplitTunneling)
 
@@ -126,6 +144,7 @@ fun SettingsView(
             Lists.ItemDivider()
             Setting.Text(
                 R.string.tailnet_lock,
+                  hideable = true,
                 subtitle =
                     tailnetLockEnabled?.let {
                       stringResource(if (it) R.string.enabled else R.string.disabled)
@@ -134,12 +153,14 @@ fun SettingsView(
           }
           if (useTailscaleSubnets.value == AlwaysNeverUserDecides.UserDecides) {
             Lists.ItemDivider()
-            Setting.Text(R.string.subnet_routing, onClick = settingsNav.onNavigateToSubnetRouting)
+            Setting.Text(R.string.subnet_routing,
+            hideable = true, onClick = settingsNav.onNavigateToSubnetRouting)
           }
 
           Lists.ItemDivider()
           Setting.Switch(
               R.string.client_remote_logging_enabled,
+                hideable = true,
               subtitle =
                   stringResource(
                       if (MDMSettings.isMDMConfigured)
@@ -157,15 +178,18 @@ fun SettingsView(
 
           if (!AndroidTVUtil.isAndroidTV()) {
             Lists.ItemDivider()
-            Setting.Text(R.string.permissions, onClick = settingsNav.onNavigateToPermissions)
+            Setting.Text(R.string.permissions,
+              hideable = true, onClick = settingsNav.onNavigateToPermissions)
             Lists.ItemDivider()
-            Setting.Text(R.string.theme_setting, onClick = settingsNav.onNavigateToThemeSettings)
+            Setting.Text(R.string.theme_setting,
+            hideable = true, onClick = settingsNav.onNavigateToThemeSettings)
           }
 
           managedByOrganization.value?.let {
             Lists.ItemDivider()
             Setting.Text(
                 title = stringResource(R.string.managed_by_orgName, it),
+                hideId = "managedby",
                 onClick = settingsNav.onNavigateToManagedBy)
           }
 
@@ -173,13 +197,18 @@ fun SettingsView(
           Setting.Text(
               R.string.about_tailscale,
               subtitle = "${stringResource(id = R.string.version)} ${AppVersion.Short()}",
+              hideable = false,
+              onLongClick = { HiddenSettings.toggleReveal() },
               onClick = settingsNav.onNavigateToAbout)
 
           // TODO: put a heading for the debug section
           if (BuildConfig.DEBUG) {
             Lists.SectionDivider()
             Lists.MutedHeader(text = stringResource(R.string.internal_debug_options))
-            Setting.Text(R.string.mdm_settings, onClick = settingsNav.onNavigateToMDMSettings)
+            Setting.Text(
+                R.string.mdm_settings,
+                hideable = true,
+                onClick = settingsNav.onNavigateToMDMSettings)
           }
         }
       }
@@ -210,48 +239,111 @@ fun SettingsView(
 
 object Setting {
   @Composable
+  /**
+   * A settings row. When [hideable], long-pressing offers to hide it; hidden rows come back by
+   * long-pressing About. Rows with a dynamic title must pass an explicit [hideId].
+   */
+  @OptIn(ExperimentalFoundationApi::class)
   fun Text(
       titleRes: Int = 0,
       title: String? = null,
       subtitle: String? = null,
       destructive: Boolean = false,
       enabled: Boolean = true,
+      hideable: Boolean = false,
+      hideId: String? = null,
+      onLongClick: (() -> Unit)? = null,
       onClick: (() -> Unit)? = null
   ) {
+    val rowKey = hideId ?: if (titleRes != 0) "r$titleRes" else null
+    val hiddenRows by HiddenSettings.hidden.collectAsState()
+    val revealing by HiddenSettings.revealing.collectAsState()
+    val hiddenNow = hideable && rowKey != null && rowKey in hiddenRows
+    if (hiddenNow && !revealing) return
+
     var modifier: Modifier = Modifier
     if (enabled) {
-      onClick?.let { modifier = modifier.clickable(onClick = it) }
+      onClick?.let { click ->
+        val longPress =
+            onLongClick
+                ?: if (hideable && rowKey != null) {
+                  { HiddenSettings.openMenu(rowKey) }
+                } else {
+                  null
+                }
+        modifier =
+            if (longPress != null) {
+              modifier.combinedClickable(onClick = click, onLongClick = longPress)
+            } else {
+              modifier.clickable(onClick = click)
+            }
+      }
     }
-    ListItem(
-        modifier = modifier,
-        colors = MaterialTheme.colorScheme.listItem,
-        headlineContent = {
-          Text(
-              title ?: stringResource(titleRes),
-              style = MaterialTheme.typography.bodyMedium,
-              color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified)
-        },
-        supportingContent =
-            subtitle?.let {
-              {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-              }
-            })
+    Box(modifier.then(if (hiddenNow) Modifier.alpha(0.45f) else Modifier)) {
+      ListItem(
+          colors = MaterialTheme.colorScheme.listItem,
+          headlineContent = {
+            Text(
+                title ?: stringResource(titleRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified)
+          },
+          supportingContent =
+              subtitle?.let {
+                {
+                  Text(
+                      it,
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+              })
+      if (hideable && rowKey != null) RowHideMenu(rowKey = rowKey, hidden = hiddenNow)
+    }
+  }
+
+  /** Long-press menu offering to hide, or bring back, a row. */
+  @Composable
+  private fun RowHideMenu(rowKey: String, hidden: Boolean) {
+    val menuFor by HiddenSettings.menuFor.collectAsState()
+    DropdownMenu(expanded = menuFor == rowKey, onDismissRequest = { HiddenSettings.closeMenu() }) {
+      DropdownMenuItem(
+          text = {
+            Text(
+                stringResource(
+                    if (hidden) R.string.settings_unhide_row else R.string.settings_hide_row))
+          },
+          onClick = { HiddenSettings.toggleHidden(rowKey) })
+    }
   }
 
   @Composable
+  @OptIn(ExperimentalFoundationApi::class)
   fun Switch(
       titleRes: Int = 0,
       title: String? = null,
       subtitle: String? = null,
       isOn: Boolean,
       enabled: Boolean = true,
+      hideable: Boolean = false,
+      hideId: String? = null,
       onToggle: (Boolean) -> Unit = {}
   ) {
-    ListItem(
+    val rowKey = hideId ?: if (titleRes != 0) "r$titleRes" else null
+    val hiddenRows by HiddenSettings.hidden.collectAsState()
+    val revealing by HiddenSettings.revealing.collectAsState()
+    val hiddenNow = hideable && rowKey != null && rowKey in hiddenRows
+    if (hiddenNow && !revealing) return
+
+    Box(
+        Modifier.then(
+            if (hiddenNow) Modifier.alpha(0.45f)
+            else if (hideable && rowKey != null) {
+              Modifier.combinedClickable(
+                  onClick = {}, onLongClick = { HiddenSettings.openMenu(rowKey) })
+            } else {
+              Modifier
+            })) {
+      ListItem(
         colors = MaterialTheme.colorScheme.listItem,
         headlineContent = {
           Text(
@@ -271,6 +363,8 @@ object Setting {
         trailingContent = {
           TintedSwitch(checked = isOn, onCheckedChange = onToggle, enabled = enabled)
         })
+      if (hideable && rowKey != null) RowHideMenu(rowKey = rowKey, hidden = hiddenNow)
+    }
   }
 }
 
