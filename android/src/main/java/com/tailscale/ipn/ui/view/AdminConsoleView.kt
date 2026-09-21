@@ -899,7 +899,7 @@ private fun RouteCell(
             stringResource(routeTypeLabel(route)),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, end = 2.dp))
+            modifier = Modifier.padding(start = 6.dp, end = 4.dp))
       }
 }
 
@@ -964,7 +964,7 @@ private fun RouteNodeBlock(
               route = route,
               approved = node.approvedRoutes.contains(route),
               busy = busy,
-              modifier = Modifier.weight(1f),
+              modifier = Modifier.weight(1f).padding(end = 14.dp),
               onToggle = {
                 val next =
                     if (node.approvedRoutes.contains(route)) node.approvedRoutes - route
