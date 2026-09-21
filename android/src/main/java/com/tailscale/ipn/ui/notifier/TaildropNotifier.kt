@@ -45,7 +45,7 @@ object TaildropNotifier {
       }
       InlineShare.Kind.TEXT -> {
         title = context.getString(R.string.taildrop_text_received)
-        body = pending.content.take(120).replace("\n", " ")
+        body = pending.content.take(PREVIEW_CHARS).replace("\n", " ")
         subtitle = context.getString(R.string.taildrop_tap_to_copy)
       }
     }

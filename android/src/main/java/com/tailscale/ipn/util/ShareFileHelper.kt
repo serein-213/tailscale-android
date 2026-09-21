@@ -92,19 +92,6 @@ object ShareFileHelper : libtailscale.ShareFileHelper {
     directoryReady?.takeIf { !it.isCompleted }?.complete(Unit)
   }
 
-  // A helper function that opens or creates a SafStream for a given file.
-  private fun openSafFileOutputStream(fileName: String): Pair<String, OutputStream?> {
-    val context = appContext ?: return "" to null
-    val dirUri = savedUri ?: return "" to null
-    val dir = DocumentFile.fromTreeUri(context, Uri.parse(dirUri)) ?: return "" to null
-    val file =
-        dir.findFile(fileName)
-            ?: dir.createFile("application/octet-stream", fileName)
-            ?: return "" to null
-    val os = context.contentResolver.openOutputStream(file.uri, "rw")
-    return file.uri.toString() to os
-  }
-
   @Throws(IOException::class)
   private fun openWriterFD(fileName: String, offset: Long): Pair<String, SeekableOutputStream> {
     val ctx = appContext ?: throw IOException("App context not initialized")
