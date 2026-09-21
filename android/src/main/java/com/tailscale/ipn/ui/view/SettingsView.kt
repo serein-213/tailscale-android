@@ -104,6 +104,9 @@ fun SettingsView(
           }
 
           Lists.ItemDivider()
+          Setting.Text(R.string.in_app_admin, onClick = settingsNav.onNavigateToAdmin)
+
+          Lists.ItemDivider()
           Setting.Text(
               R.string.dns_settings,
               subtitle =
@@ -315,7 +318,7 @@ fun SettingsPreview() {
   vm.isAdmin.set(true)
   vm.managedByOrganization.set("Tails and Scales Inc.")
   SettingsView(
-      settingsNav = SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
+      settingsNav = SettingsNav({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}),
       viewModel = vm,
       appViewModel = AppViewModel(App.get(), emptyFlow<Unit>()))
 }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 data class SettingsNav(
     val onNavigateToBugReport: () -> Unit,
     val onNavigateToAbout: () -> Unit,
+    val onNavigateToAdmin: () -> Unit,
     val onNavigateToDNSSettings: () -> Unit,
     val onNavigateToSplitTunneling: () -> Unit,
     val onNavigateToTailnetLock: () -> Unit,

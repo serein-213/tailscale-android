@@ -66,6 +66,7 @@ import com.tailscale.ipn.ui.util.DeepLinkNavigator
 import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.ui.util.universalFit
 import com.tailscale.ipn.ui.view.AboutView
+import com.tailscale.ipn.ui.view.AdminConsoleView
 import com.tailscale.ipn.ui.view.BugReportView
 import com.tailscale.ipn.ui.view.DNSSettingsView
 import com.tailscale.ipn.ui.view.ExitNodePicker
@@ -322,6 +323,7 @@ class MainActivity : ComponentActivity() {
                       SettingsNav(
                           onNavigateToBugReport = { navController.navigate("bugReport") },
                           onNavigateToAbout = { navController.navigate("about") },
+                          onNavigateToAdmin = { navController.navigate("adminConsole") },
                           onNavigateToDNSSettings = { navController.navigate("dnsSettings") },
                           onNavigateToSplitTunneling = { navController.navigate("splitTunneling") },
                           onNavigateToTailnetLock = { navController.navigate("tailnetLock") },
@@ -398,6 +400,7 @@ class MainActivity : ComponentActivity() {
                   composable("dnsSettings") { DNSSettingsView(backTo("settings")) }
                   composable("themeSettings") { ThemeSettingsView(backTo("settings")) }
                   composable("splitTunneling") { SplitTunnelAppPickerView(backTo("settings")) }
+                  composable("adminConsole") { AdminConsoleView(backTo("settings")) }
                   composable("tailnetLock") { TailnetLockSetupView(backTo("settings")) }
                   composable("subnetRouting") { SubnetRoutingView(backTo("settings")) }
                   composable("about") { AboutView(backTo("settings")) }

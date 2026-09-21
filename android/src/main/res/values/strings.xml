@@ -436,5 +436,25 @@
     <string name="update_up_to_date_title">You are up to date</string>
     <string name="update_up_to_date_message">Tailscale %1$s is the latest published build.</string>
     <string name="update_check_failed_title">Update check failed</string>
+    <string name="in_app_admin">Tailnet admin (in-app)</string>
+    <string name="admin_connection">Connection</string>
+    <string name="admin_base_url">Headscale URL</string>
+    <string name="admin_api_key">API key</string>
+    <string name="admin_save_and_test">Save and test</string>
+    <string name="admin_needs_config">Enter the Headscale URL and an API key to manage this tailnet from the app.</string>
+    <string name="admin_nodes">Devices</string>
+    <string name="admin_preauth_keys">Pre-authorisation keys</string>
+    <string name="admin_new_preauth_key">New pre-authorisation key</string>
+    <string name="admin_user">User</string>
+    <string name="admin_reusable">Reusable</string>
+    <string name="admin_ephemeral">Ephemeral</string>
+    <string name="admin_expiration_days">Expiration (days)</string>
+    <string name="admin_create">Create</string>
+    <string name="admin_action_expire">Expire</string>
+    <string name="admin_action_delete">Delete</string>
+    <string name="admin_action_rename">Rename</string>
+    <string name="admin_device_actions">Device actions</string>
+    <string name="admin_key_actions">Key actions</string>
+    <string name="admin_confirm_delete">Delete this device?</string>
 
 </resources>

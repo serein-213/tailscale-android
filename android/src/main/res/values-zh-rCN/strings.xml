@@ -438,5 +438,25 @@
     <string name="taildrop_copied_to_clipboard">已复制到剪贴板</string>
     <string name="taildrop_dismiss">忽略</string>
     <string name="taildrop_done">完成</string>
+    <string name="in_app_admin">Tailnet 管理（应用内）</string>
+    <string name="admin_connection">连接</string>
+    <string name="admin_base_url">Headscale 地址</string>
+    <string name="admin_api_key">API 密钥</string>
+    <string name="admin_save_and_test">保存并测试</string>
+    <string name="admin_needs_config">填写 Headscale 地址与 API 密钥后，即可在应用内管理此 tailnet。</string>
+    <string name="admin_nodes">设备</string>
+    <string name="admin_preauth_keys">预授权密钥</string>
+    <string name="admin_new_preauth_key">新建预授权密钥</string>
+    <string name="admin_user">用户</string>
+    <string name="admin_reusable">可复用</string>
+    <string name="admin_ephemeral">临时节点</string>
+    <string name="admin_expiration_days">有效期（天）</string>
+    <string name="admin_create">创建</string>
+    <string name="admin_action_expire">过期</string>
+    <string name="admin_action_delete">删除</string>
+    <string name="admin_action_rename">重命名</string>
+    <string name="admin_device_actions">设备操作</string>
+    <string name="admin_key_actions">密钥操作</string>
+    <string name="admin_confirm_delete">删除该设备？</string>
 
 </resources>
