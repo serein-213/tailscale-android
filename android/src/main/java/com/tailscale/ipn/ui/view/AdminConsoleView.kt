@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -31,10 +33,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,7 +75,7 @@ import kotlinx.coroutines.withContext
  * and tailnet state at a glance.
  */
 @Composable
-fun AdminConsoleView(backToSettings: BackNavigation, onOpenPolicy: () -> Unit) {
+fun AdminConsoleView(backToSettings: BackNavigation) {
   val TAG = "AdminConsoleView"
   val scope = rememberCoroutineScope()
 
@@ -84,7 +89,10 @@ fun AdminConsoleView(backToSettings: BackNavigation, onOpenPolicy: () -> Unit) {
   val keys = remember { mutableStateListOf<AdminApi.HsPreAuthKey>() }
   val users = remember { mutableStateListOf<AdminApi.HsUser>() }
 
-  var editingConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
+  var selectedTab by remember { mutableStateOf(0) }
+  var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
+  var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
+  var policyLoading by remember { mutableStateOf(false) }
 
   var pendingExpire by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingDelete by remember { mutableStateOf<AdminApi.HsNode?>(null) }
@@ -122,6 +130,22 @@ fun AdminConsoleView(backToSettings: BackNavigation, onOpenPolicy: () -> Unit) {
     }
   }
 
+  /** Policies are large and only shown on demand: load them when that tab is opened. */
+  fun loadPolicy() {
+    scope.launch {
+      policyLoading = true
+      runCatching { withContext(Dispatchers.IO) { AdminApi.policy() } }
+          .onSuccess { policy = it }
+          .onFailure { TSLog.w(TAG, "policy load failed: ${it.message}") }
+      policyLoading = false
+    }
+  }
+
+  fun refresh() {
+    reload()
+    if (selectedTab == 3) loadPolicy()
+  }
+
   /**
    * Runs a mutating call and surfaces failures. Returns false when it failed so the caller skips
    * the follow-up reload, which would otherwise wipe the error from the screen.
@@ -147,138 +171,135 @@ fun AdminConsoleView(backToSettings: BackNavigation, onOpenPolicy: () -> Unit) {
             R.string.in_app_admin,
             onBack = backToSettings,
             actions = {
-              TextButton(onClick = { reload() }, enabled = configured && !busy) {
+              TextButton(onClick = { showConnection = true }) {
+                Text(stringResource(R.string.admin_connection))
+              }
+              TextButton(onClick = { refresh() }, enabled = configured && !busy) {
                 Text(stringResource(R.string.admin_refresh))
               }
             })
       },
       snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
-    LoadingIndicator.Wrap {
-      LazyColumn(Modifier.padding(innerPadding)) {
-        item("connection") {
-          Lists.SectionDivider(stringResource(R.string.admin_connection))
-          if (configured && !editingConnection) {
-            ListItem(
-                headlineContent = {
-                  Text(baseUrl, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                },
-                supportingContent = {
-                  Text(
-                      status ?: stringResource(R.string.admin_key_saved),
-                      style = MaterialTheme.typography.bodySmall,
-                      color =
-                          if (status != null) MaterialTheme.colorScheme.error
-                          else MaterialTheme.colorScheme.onSurfaceVariant,
-                      maxLines = 2,
-                      overflow = TextOverflow.Ellipsis)
-                },
-                trailingContent = {
-                  TextButton(onClick = { editingConnection = true }) {
-                    Text(stringResource(R.string.admin_edit))
+        LoadingIndicator.Wrap {
+          Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            status?.let {
+              Text(
+                  it,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.error,
+                  maxLines = 3,
+                  modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+
+            if (!configured) {
+              Text(
+                  stringResource(R.string.admin_needs_config),
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.padding(16.dp))
+              TextButton(
+                  onClick = { showConnection = true },
+                  modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(
+                        stringResource(R.string.admin_connection),
+                        color = MaterialTheme.colorScheme.link)
                   }
-                })
-          } else {
-            Column(
-                Modifier.padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text(stringResource(R.string.admin_base_url)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text(stringResource(R.string.admin_api_key)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth())
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-              Button(
-                  enabled = !busy,
-                  onClick = {
-                    AdminApi.saveConnection(baseUrl, apiKey)
-                    editingConnection = false
-                    reload()
-                  }) {
-                    Text(stringResource(R.string.admin_save_and_test))
-                  }
-              status?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 3)
+            } else {
+              // One section at a time: a 26-device tailnet plus users, keys and policy in a single
+              // scroll made everything hard to find.
+              TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("${stringResource(R.string.admin_nodes)} (${nodes.size})") })
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("${stringResource(R.string.admin_users)} (${users.size})") })
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("${stringResource(R.string.admin_keys_short)} (${keys.size})") })
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text(stringResource(R.string.admin_policy)) })
+              }
+
+              when (selectedTab) {
+                0 ->
+                    LazyColumn(Modifier.fillMaxSize()) {
+                      items(nodes, key = { it.id }) { node ->
+                        NodeRow(
+                            node = node,
+                            busy = busy,
+                            onRename = { pendingRename = node },
+                            onRoutes = { pendingRoutes = node },
+                            onTags = { pendingTags = node },
+                            onExpire = { pendingExpire = node },
+                            onDelete = { pendingDelete = node })
+                      }
+                    }
+                1 ->
+                    LazyColumn(Modifier.fillMaxSize()) {
+                      items(users, key = { it.id }) { user ->
+                        UserRow(
+                            user = user,
+                            onRename = { pendingRenameUser = user },
+                            onDelete = { pendingDeleteUser = user })
+                      }
+                      item("newUser") {
+                        TextButton(
+                            onClick = { showCreateUser = true },
+                            modifier = Modifier.padding(horizontal = 8.dp)) {
+                              Text(
+                                  stringResource(R.string.admin_new_user),
+                                  color = MaterialTheme.colorScheme.link)
+                            }
+                      }
+                    }
+                2 ->
+                    LazyColumn(Modifier.fillMaxSize()) {
+                      items(keys, key = { it.id }) { key ->
+                        PreAuthKeyRow(key, onExpire = { pendingExpireKey = key })
+                      }
+                      item("newKey") {
+                        TextButton(
+                            onClick = { showCreateKey = true },
+                            modifier = Modifier.padding(horizontal = 8.dp)) {
+                              Text(
+                                  stringResource(R.string.admin_new_preauth_key),
+                                  color = MaterialTheme.colorScheme.link)
+                            }
+                      }
+                    }
+                else -> {
+                  LaunchedEffect(Unit) { if (policy == null) loadPolicy() }
+                  PolicyTabContent(
+                      text = policy?.policy.orEmpty(),
+                      updatedAt = policy?.updatedAt,
+                      loading = policyLoading)
+                }
               }
             }
-            }
-          }
-        }
-
-        if (!configured) {
-          item("hint") {
-            Text(
-                stringResource(R.string.admin_needs_config),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp))
-          }
-        } else {
-          item("nodesHeader") {
-            Lists.SectionDivider("${stringResource(R.string.admin_nodes)} (${nodes.size})")
-          }
-          items(nodes, key = { it.id }) { node ->
-            NodeRow(
-                node = node,
-                busy = busy,
-                onRename = { pendingRename = node },
-                onRoutes = { pendingRoutes = node },
-                onTags = { pendingTags = node },
-                onExpire = { pendingExpire = node },
-                onDelete = { pendingDelete = node })
-          }
-
-          item("usersHeader") {
-            Lists.SectionDivider("${stringResource(R.string.admin_users)} (${users.size})")
-          }
-          items(users, key = { it.id }) { user ->
-            UserRow(
-                user = user,
-                onRename = { pendingRenameUser = user },
-                onDelete = { pendingDeleteUser = user })
-          }
-          item("newUser") {
-            TextButton(
-                onClick = { showCreateUser = true },
-                modifier = Modifier.padding(horizontal = 8.dp)) {
-                  Text(stringResource(R.string.admin_new_user), color = MaterialTheme.colorScheme.link)
-                }
-          }
-
-          item("keysHeader") {
-            Lists.SectionDivider("${stringResource(R.string.admin_preauth_keys)} (${keys.size})")
-          }
-          items(keys, key = { it.id }) { key -> PreAuthKeyRow(key, onExpire = { pendingExpireKey = key }) }
-          item("newKey") {
-            TextButton(
-                onClick = { showCreateKey = true },
-                modifier = Modifier.padding(horizontal = 8.dp)) {
-                  Text(stringResource(R.string.admin_new_preauth_key), color = MaterialTheme.colorScheme.link)
-                }
-          }
-
-          item("policyHeader") { Lists.SectionDivider(stringResource(R.string.admin_policy)) }
-          item("policyRow") {
-            ListItem(
-                headlineContent = {
-                  Text(stringResource(R.string.admin_policy_view), style = MaterialTheme.typography.bodyMedium)
-                },
-                modifier = Modifier.clickable { onOpenPolicy() })
           }
         }
       }
-    }
+
+  if (showConnection) {
+    ConnectionDialog(
+        baseUrl = baseUrl,
+        apiKey = apiKey,
+        busy = busy,
+        status = status,
+        onBaseUrlChange = { baseUrl = it },
+        onApiKeyChange = { apiKey = it },
+        onDismiss = { showConnection = false },
+        onSave = {
+          AdminApi.saveConnection(baseUrl, apiKey)
+          showConnection = false
+          reload()
+        })
   }
 
   pendingExpire?.let { node ->
@@ -731,6 +752,81 @@ private fun TextInputDialog(
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+private fun ConnectionDialog(
+    baseUrl: String,
+    apiKey: String,
+    busy: Boolean,
+    status: String?,
+    onBaseUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.admin_connection)) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          OutlinedTextField(
+              value = baseUrl,
+              onValueChange = onBaseUrlChange,
+              label = { Text(stringResource(R.string.admin_base_url)) },
+              singleLine = true,
+              modifier = Modifier.fillMaxWidth())
+          OutlinedTextField(
+              value = apiKey,
+              onValueChange = onApiKeyChange,
+              label = { Text(stringResource(R.string.admin_api_key)) },
+              singleLine = true,
+              visualTransformation = PasswordVisualTransformation(),
+              modifier = Modifier.fillMaxWidth())
+          status?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                maxLines = 3)
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(enabled = !busy && baseUrl.isNotBlank(), onClick = onSave) {
+          Text(stringResource(R.string.admin_save_and_test))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+private fun PolicyTabContent(text: String, updatedAt: String?, loading: Boolean) {
+  val clipboard = LocalClipboardManager.current
+  if (text.isEmpty() && loading) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      CircularProgressIndicator(Modifier.size(32.dp))
+    }
+    return
+  }
+  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      TextButton(enabled = text.isNotEmpty(), onClick = { clipboard.setText(AnnotatedString(text)) }) {
+        Text(stringResource(R.string.copy_to_clipboard), color = MaterialTheme.colorScheme.link)
+      }
+      updatedAt?.let {
+        Text(
+            stringResource(R.string.admin_policy_updated, it.replace("T", " ").take(19)),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        fontFamily = FontFamily.Monospace,
+        modifier = Modifier.padding(top = 8.dp))
+  }
 }
 
 @Composable

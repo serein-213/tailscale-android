@@ -67,7 +67,6 @@ import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.ui.util.universalFit
 import com.tailscale.ipn.ui.view.AboutView
 import com.tailscale.ipn.ui.view.AdminConsoleView
-import com.tailscale.ipn.ui.view.AdminPolicyView
 import com.tailscale.ipn.ui.view.BugReportView
 import com.tailscale.ipn.ui.view.DNSSettingsView
 import com.tailscale.ipn.ui.view.ExitNodePicker
@@ -401,11 +400,7 @@ class MainActivity : ComponentActivity() {
                   composable("dnsSettings") { DNSSettingsView(backTo("settings")) }
                   composable("themeSettings") { ThemeSettingsView(backTo("settings")) }
                   composable("splitTunneling") { SplitTunnelAppPickerView(backTo("settings")) }
-                  composable("adminConsole") {
-                    AdminConsoleView(
-                        backTo("settings"), onOpenPolicy = { navController.navigate("adminPolicy") })
-                  }
-                  composable("adminPolicy") { AdminPolicyView(backTo("adminConsole")) }
+                  composable("adminConsole") { AdminConsoleView(backTo("settings")) }
                   composable("tailnetLock") { TailnetLockSetupView(backTo("settings")) }
                   composable("subnetRouting") { SubnetRoutingView(backTo("settings")) }
                   composable("about") { AboutView(backTo("settings")) }
