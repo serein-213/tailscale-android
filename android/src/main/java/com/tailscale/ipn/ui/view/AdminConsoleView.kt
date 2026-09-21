@@ -898,6 +898,41 @@ private fun CreatePreAuthKeyDialog(
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
 
+/** One route in the grid: checkbox, the route itself, and whether it is a subnet or exit route. */
+@Composable
+private fun RouteCell(
+    route: String,
+    approved: Boolean,
+    busy: Boolean,
+    modifier: Modifier,
+    onToggle: () -> Unit,
+) {
+  Row(
+      modifier.clickable(enabled = !busy, onClick = onToggle).padding(vertical = 2.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = approved, onCheckedChange = null)
+        Text(
+            route,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color =
+                if (approved) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            modifier = Modifier.weight(1f))
+        Text(
+            stringResource(routeTypeLabel(route)),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, end = 2.dp))
+      }
+}
+
+/** 0.0.0.0/0 and ::/0 are exit-node routes; everything else is a subnet route. */
+private fun routeTypeLabel(route: String): Int =
+    if (route == "0.0.0.0/0" || route == "::/0") R.string.admin_route_exit
+    else R.string.admin_route_subnet
+
 /** One device's advertised routes, toggled in place; the API takes the whole approved set. */
 @Composable
 private fun RouteNodeBlock(
@@ -946,26 +981,24 @@ private fun RouteNodeBlock(
                 }
           }
         }
-    routes.forEach { route ->
-      val approved = node.approvedRoutes.contains(route)
-      Row(
-          Modifier.fillMaxWidth()
-              .clickable(enabled = !busy) {
-                val next = if (approved) node.approvedRoutes - route else node.approvedRoutes + route
+    // Two routes per row: they are short, and a full row each left the screen half empty.
+    routes.chunked(2).forEach { pair ->
+      Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp)) {
+        pair.forEach { route ->
+          RouteCell(
+              route = route,
+              approved = node.approvedRoutes.contains(route),
+              busy = busy,
+              modifier = Modifier.weight(1f),
+              onToggle = {
+                val next =
+                    if (node.approvedRoutes.contains(route)) node.approvedRoutes - route
+                    else node.approvedRoutes + route
                 onApply(routes.filter { it in next })
-              }
-              .padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
-          verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                route,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color =
-                    if (approved) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f))
-            Checkbox(checked = approved, onCheckedChange = null)
-          }
+              })
+        }
+        if (pair.size == 1) Spacer(Modifier.weight(1f))
+      }
     }
     Spacer(Modifier.size(6.dp))
     Lists.ItemDivider()

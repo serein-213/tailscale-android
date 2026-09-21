@@ -488,6 +488,8 @@
     <string name="admin_policy_tab">Policy</string>
     <string name="admin_routes_approved">%1$d/%2$d approved</string>
     <string name="admin_copy">Copy</string>
+    <string name="admin_route_exit">Exit</string>
+    <string name="admin_route_subnet">Subnet</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

@@ -490,6 +490,8 @@
     <string name="admin_policy_tab">策略</string>
     <string name="admin_routes_approved">已批准 %1$d/%2$d</string>
     <string name="admin_copy">复制</string>
+    <string name="admin_route_exit">出口</string>
+    <string name="admin_route_subnet">子网</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>
