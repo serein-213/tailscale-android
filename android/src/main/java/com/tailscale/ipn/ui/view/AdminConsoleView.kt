@@ -32,7 +32,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -553,32 +552,22 @@ private fun NodeRow(
             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_device_actions))
           }
           DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_action_rename)) },
-                onClick = {
-                  menuOpen = false
-                  onRename()
-                })
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_node_tags)) },
-                onClick = {
-                  menuOpen = false
-                  onTags()
-                })
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_action_expire)) },
-                onClick = {
-                  menuOpen = false
-                  onExpire()
-                })
-            DropdownMenuItem(
-                text = {
-                  Text(stringResource(R.string.admin_action_delete), color = MaterialTheme.colorScheme.error)
-                },
-                onClick = {
-                  menuOpen = false
-                  onDelete()
-                })
+            CompactMenuItem(stringResource(R.string.admin_action_rename)) {
+              menuOpen = false
+              onRename()
+            }
+            CompactMenuItem(stringResource(R.string.admin_node_tags)) {
+              menuOpen = false
+              onTags()
+            }
+            CompactMenuItem(stringResource(R.string.admin_action_expire)) {
+              menuOpen = false
+              onExpire()
+            }
+            CompactMenuItem(stringResource(R.string.admin_action_delete), destructive = true) {
+              menuOpen = false
+              onDelete()
+            }
           }
         }
       })
@@ -701,20 +690,14 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_key_actions))
           }
           DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.admin_copy)) },
-                onClick = {
-                  menuOpen = false
-                  clipboard.setText(AnnotatedString(key.key))
-                })
-            DropdownMenuItem(
-                text = {
-                  Text(stringResource(R.string.admin_action_expire), color = MaterialTheme.colorScheme.error)
-                },
-                onClick = {
-                  menuOpen = false
-                  onExpire()
-                })
+            CompactMenuItem(stringResource(R.string.admin_copy)) {
+              menuOpen = false
+              clipboard.setText(AnnotatedString(key.key))
+            }
+            CompactMenuItem(stringResource(R.string.admin_action_expire), destructive = true) {
+              menuOpen = false
+              onExpire()
+            }
           }
         }
       })
@@ -759,20 +742,14 @@ private fun UserRow(
               Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_user_actions))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-              DropdownMenuItem(
-                  text = { Text(stringResource(R.string.admin_action_rename)) },
-                  onClick = {
-                    menuOpen = false
-                    onRename()
-                  })
-              DropdownMenuItem(
-                  text = {
-                    Text(stringResource(R.string.admin_action_delete), color = MaterialTheme.colorScheme.error)
-                  },
-                  onClick = {
-                    menuOpen = false
-                    onDelete()
-                  })
+              CompactMenuItem(stringResource(R.string.admin_action_rename)) {
+                menuOpen = false
+                onRename()
+              }
+              CompactMenuItem(stringResource(R.string.admin_action_delete), destructive = true) {
+                menuOpen = false
+                onDelete()
+              }
             }
           }
         }
@@ -855,12 +832,10 @@ private fun CreatePreAuthKeyDialog(
             Box(Modifier.matchParentSize().clickable { pickerOpen = true })
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
               users.forEach { candidate ->
-                DropdownMenuItem(
-                    text = { Text(candidate.name) },
-                    onClick = {
-                      user = candidate
-                      pickerOpen = false
-                    })
+                CompactMenuItem(candidate.name) {
+                  user = candidate
+                  pickerOpen = false
+                }
               }
             }
           }
@@ -1081,6 +1056,24 @@ private fun TextInputDialog(
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+/**
+ * A menu entry that hugs its label. Material's DropdownMenuItem fills the popup's maximum width,
+ * which left short labels stranded on the left of a mostly empty menu.
+ */
+@Composable
+private fun CompactMenuItem(
+    label: String,
+    destructive: Boolean = false,
+    onClick: () -> Unit,
+) {
+  Text(
+      label,
+      style = MaterialTheme.typography.bodyMedium,
+      color =
+          if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp))
 }
 
 @Composable
