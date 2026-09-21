@@ -423,4 +423,18 @@
     <string name="enable_hardware_attestation">Enable hardware attestation</string>
     <string name="use_hardware_backed_keys_to_bind_node_identity_to_the_device">Use hardware-backed keys to bind node identity to the device</string>
 
+    <!-- Strings for the in-app update check -->
+    <string name="check_for_updates">Check for updates</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_available_subtitle">New version %1$s available</string>
+    <string name="update_available_title">Update %1$s available</string>
+    <string name="update_published_at">Published %1$s</string>
+    <string name="update_download_and_install">Download and install</string>
+    <string name="update_open_in_browser">Open in browser</string>
+    <string name="update_download_started">Downloading update…</string>
+    <string name="update_download_failed_title">Download failed</string>
+    <string name="update_up_to_date_title">You are up to date</string>
+    <string name="update_up_to_date_message">Tailscale %1$s is the latest published build.</string>
+    <string name="update_check_failed_title">Update check failed</string>
+
 </resources>

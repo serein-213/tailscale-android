@@ -3,6 +3,8 @@
 
 package com.tailscale.ipn.ui.view
 
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +29,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -56,11 +60,14 @@ import com.tailscale.ipn.ui.util.AndroidTVUtil
 import com.tailscale.ipn.ui.util.AndroidTVUtil.isAndroidTV
 import com.tailscale.ipn.ui.util.AppVersion
 import com.tailscale.ipn.ui.util.Lists
+import com.tailscale.ipn.ui.util.UpdateChecker
 import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.ui.viewModel.AppViewModel
 import com.tailscale.ipn.ui.viewModel.SettingsNav
 import com.tailscale.ipn.ui.viewModel.SettingsViewModel
+import com.tailscale.ipn.util.BrowserOpener
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsView(
@@ -80,6 +87,14 @@ fun SettingsView(
   val useTailscaleSubnets by MDMSettings.useTailscaleSubnets.flow.collectAsState()
   val isClientRemoteLoggingEnabled by viewModel.isClientRemoteLoggingEnabled.collectAsState()
   var showDisableLoggingDialog by remember { mutableStateOf(false) }
+
+  // In-app update check against this fork's GitHub releases.
+  val context = LocalContext.current
+  val updateScope = rememberCoroutineScope()
+  var updateChecking by remember { mutableStateOf(false) }
+  var updateState by remember { mutableStateOf<UpdateChecker.Result?>(null) }
+  var showUpdateDialog by remember { mutableStateOf(false) }
+  var updateErrorMessage by remember { mutableStateOf<String?>(null) }
 
   Scaffold(
       topBar = {
@@ -167,6 +182,28 @@ fun SettingsView(
 
           Lists.ItemDivider()
           Setting.Text(
+              R.string.check_for_updates,
+              subtitle =
+                  when {
+                    updateChecking -> stringResource(R.string.update_checking)
+                    updateState is UpdateChecker.Result.Available ->
+                        stringResource(
+                            R.string.update_available_subtitle,
+                            (updateState as UpdateChecker.Result.Available).release.tag)
+                    else -> null
+                  },
+              enabled = !updateChecking,
+              onClick = {
+                updateChecking = true
+                updateScope.launch {
+                  updateState = UpdateChecker.check()
+                  updateChecking = false
+                  showUpdateDialog = true
+                }
+              })
+
+          Lists.ItemDivider()
+          Setting.Text(
               R.string.about_tailscale,
               subtitle = "${stringResource(id = R.string.version)} ${AppVersion.Short()}",
               onClick = settingsNav.onNavigateToAbout)
@@ -202,6 +239,97 @@ fun SettingsView(
           }
         })
   }
+
+  val checkedState = updateState
+  if (showUpdateDialog && checkedState != null) {
+    when (checkedState) {
+      is UpdateChecker.Result.Available ->
+          UpdateAvailableDialog(
+              release = checkedState.release,
+              onDismiss = { showUpdateDialog = false },
+              onOpenInBrowser = {
+                showUpdateDialog = false
+                BrowserOpener.openInDefaultBrowser(context, Uri.parse(checkedState.release.htmlUrl))
+              },
+              onDownload = {
+                showUpdateDialog = false
+                Toast.makeText(context, R.string.update_download_started, Toast.LENGTH_SHORT).show()
+                // Run on the app scope so the download/install survives leaving this screen.
+                App.get().applicationScope.launch {
+                  try {
+                    UpdateChecker.downloadAndInstall(context, checkedState.release)
+                  } catch (e: Exception) {
+                    updateErrorMessage = e.message ?: e.javaClass.simpleName
+                  }
+                }
+              })
+      is UpdateChecker.Result.UpToDate ->
+          AlertDialog(
+              onDismissRequest = { showUpdateDialog = false },
+              title = { Text(stringResource(R.string.update_up_to_date_title)) },
+              text = { Text(stringResource(R.string.update_up_to_date_message, AppVersion.Short())) },
+              confirmButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                  Text(stringResource(R.string.ok))
+                }
+              })
+      is UpdateChecker.Result.Failed ->
+          AlertDialog(
+              onDismissRequest = { showUpdateDialog = false },
+              title = { Text(stringResource(R.string.update_check_failed_title)) },
+              text = { Text(checkedState.message) },
+              confirmButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                  Text(stringResource(R.string.ok))
+                }
+              })
+    }
+  }
+
+  updateErrorMessage?.let { message ->
+    AlertDialog(
+        onDismissRequest = { updateErrorMessage = null },
+        title = { Text(stringResource(R.string.update_download_failed_title)) },
+        text = { Text(message) },
+        confirmButton = {
+          TextButton(onClick = { updateErrorMessage = null }) { Text(stringResource(R.string.ok)) }
+        })
+  }
+}
+
+@Composable
+private fun UpdateAvailableDialog(
+    release: UpdateChecker.Release,
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit,
+    onOpenInBrowser: () -> Unit,
+) {
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.update_available_title, release.tag)) },
+      text = {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+          release.publishedAt?.let {
+            Text(
+                stringResource(R.string.update_published_at, it.take(10)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          release.body?.takeIf { it.isNotBlank() }?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall)
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = onDownload) {
+          Text(stringResource(R.string.update_download_and_install))
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = onOpenInBrowser) {
+          Text(stringResource(R.string.update_open_in_browser))
+        }
+      })
 }
 
 object Setting {

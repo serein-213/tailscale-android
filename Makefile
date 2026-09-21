@@ -211,8 +211,15 @@ $(GOBIN)/gomobile: $(GOBIN)/gobind go.mod go.sum go.toolchain.rev | $(GOBIN)
 $(GOBIN)/gobind: go.mod go.sum go.toolchain.rev
 	./tool/go install golang.org/x/mobile/cmd/gobind
 
-.PHONY: build-unstripped-aar
-build-unstripped-aar: tailscale.version $(GOBIN)/gomobile
+# gomobile's output depends on the Go toolchain and module state rather than on file
+# timestamps, so the AAR is regenerated on every invocation via FORCE. The recipe has to
+# live on the file target itself: a file target whose only prerequisite is phony is never
+# restat'ed by make, so it would keep using the stale mtime and silently skip rebuilding
+# the artifacts that depend on it (libgojni.so.* and the repackaged libtailscale.aar).
+.PHONY: FORCE
+FORCE:
+
+$(UNSTRIPPED_AAR): FORCE tailscale.version $(GOBIN)/gomobile
 	@echo "Running gomobile bind to generate unstripped AAR..."
 	@echo "Output file: $(ABS_UNSTRIPPED_AAR)"
 	mkdir -p $(dir $(ABS_UNSTRIPPED_AAR))
@@ -228,7 +235,8 @@ build-unstripped-aar: tailscale.version $(GOBIN)/gomobile
 	fi
 	@echo "Generated unstripped AAR: $(ABS_UNSTRIPPED_AAR)"
 
-$(UNSTRIPPED_AAR): build-unstripped-aar
+.PHONY: build-unstripped-aar
+build-unstripped-aar: $(UNSTRIPPED_AAR)
 
 libgojni.so.unstripped: $(UNSTRIPPED_AAR)
 	@echo "Extracting libgojni.so from unstripped AAR..."

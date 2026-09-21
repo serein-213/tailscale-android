@@ -396,4 +396,47 @@
     <string name="client_remote_logging_disable_confirm_message">禁用远程客户端日志后，若您的 Tailnet 管理员已启用并依赖网络流日志，该功能将无法正常工作；同时 Tailscale 支持团队也将无法协助排查此设备上的问题。</string>
     <string name="client_remote_logging_disable_confirm_button">确认禁用</string>
 
+    <!-- 应用内检查更新 -->
+    <string name="check_for_updates">检查更新</string>
+    <string name="update_checking">正在检查…</string>
+    <string name="update_available_subtitle">有新版本 %1$s 可用</string>
+    <string name="update_available_title">发现新版本 %1$s</string>
+    <string name="update_published_at">发布于 %1$s</string>
+    <string name="update_download_and_install">下载并安装</string>
+    <string name="update_open_in_browser">在浏览器中打开</string>
+    <string name="update_download_started">正在下载更新…</string>
+    <string name="update_download_failed_title">下载失败</string>
+    <string name="update_up_to_date_title">已是最新版本</string>
+    <string name="update_up_to_date_message">Tailscale %1$s 已是当前最新发布版本。</string>
+    <string name="update_check_failed_title">检查更新失败</string>
+
+    <!-- 补全缺失的译文 -->
+    <string name="app_name">Tailscale</string>
+    <string name="tile_name">Tailscale</string>
+    <string name="copy">复制</string>
+    <string name="copied">已复制</string>
+    <string name="empty" />
+    <string name="placeholder">--</string>
+    <string name="template">%s</string>
+    <string name="custom_control_placeholder">https://my.custom.server.com</string>
+    <string name="mullvad_exit_nodes">Mullvad VPN</string>
+    <string name="key_expiry_channel_name">密钥到期</string>
+    <string name="key_expiry_channel_description">当你的 Tailscale 设备密钥即将过期时通知你。</string>
+    <string name="key_expiry_notification_title">Tailscale 登录即将过期</string>
+    <string name="key_expiry_notification_body">请重新登录，以保持此设备与你的 tailnet 的连接。</string>
+    <string name="taildrop_all_devices">所有设备</string>
+    <string name="taildrop_recently_used">最近使用</string>
+    <string name="taildrop_received_sheet_title">通过 Taildrop 接收</string>
+    <string name="taildrop_pending_count">收到 %1$d 个 Taildrop 项目</string>
+    <string name="taildrop_file_received">已通过 Taildrop 收到文件</string>
+    <string name="taildrop_text_received">已通过 Taildrop 收到文本</string>
+    <string name="taildrop_link_received">已通过 Taildrop 收到链接</string>
+    <string name="taildrop_saved_in_directory">已保存到 Taildrop 目录</string>
+    <string name="taildrop_open_folder">打开 Taildrop 文件夹</string>
+    <string name="taildrop_tap_to_copy">点击复制</string>
+    <string name="taildrop_tap_to_open">点击打开</string>
+    <string name="taildrop_copied_to_clipboard">已复制到剪贴板</string>
+    <string name="taildrop_dismiss">忽略</string>
+    <string name="taildrop_done">完成</string>
+
 </resources>
