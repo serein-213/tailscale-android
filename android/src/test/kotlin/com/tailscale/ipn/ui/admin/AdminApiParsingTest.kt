@@ -58,6 +58,53 @@ class AdminApiParsingTest {
   }
 
   @Test
+  fun parsesRouteAndTagFields() {
+    // Node #7 from the live tailnet: a subnet router that advertises an exit node route.
+    val routeNodeJson =
+        """
+        {"nodes":[{"id":"7","machineKey":"","nodeKey":"","discoKey":"","ipAddresses":["100.64.0.7","fd7a:115c:a1e0::c"],"name":"iStoreOS","user":{"id":"2147455555","name":"tagged-devices","displayName":"Tagged Devices","email":"","providerId":"","provider":"","profilePicUrl":""},"lastSeen":"2026-09-19T05:51:59.622504076Z","expiry":null,"preAuthKey":"","registerMethod":"REGISTER_METHOD_AUTH_KEY","givenName":"istoreos","online":true,"approvedRoutes":["0.0.0.0/0","172.16.15.0/24","::/0"],"availableRoutes":["0.0.0.0/0","::/0","172.16.15.0/24"],"subnetRoutes":["172.16.15.0/24","0.0.0.0/0","::/0"],"tags":["tag:echo","tag:istoreos","tag:router"]}]}
+        """
+            .trimIndent()
+
+    val node = AdminApi.parseNodes(routeNodeJson).single()
+    assertEquals(setOf("0.0.0.0/0", "::/0", "172.16.15.0/24"), node.availableRoutes.toSet())
+    assertEquals(setOf("0.0.0.0/0", "172.16.15.0/24", "::/0"), node.approvedRoutes.toSet())
+    assertEquals(listOf("tag:echo", "tag:istoreos", "tag:router"), node.tags)
+    assertEquals("tagged-devices", node.user?.name)
+    assertTrue(node.online)
+  }
+
+  @Test
+  fun parsesUsers() {
+    val usersJson =
+        """
+        {"users":[{"id":"1","name":"echo","displayName":"","email":"","providerId":"","provider":"","profilePicUrl":""}]}
+        """
+            .trimIndent()
+
+    val user = AdminApi.parseUsers(usersJson).single()
+    assertEquals("1", user.id)
+    assertEquals("echo", user.name)
+  }
+
+  @Test
+  fun parsesPolicy() {
+    // The policy arrives as a JSON string nested inside the response object.
+    val policyJson = """{"policy":"{\n  \"acls\": [\n    {\"action\": \"accept\"}\n  ]\n}","updatedAt":"2026-06-13T18:52:50.964Z"}"""
+
+    val policy = AdminApi.parsePolicy(policyJson)
+    assertTrue(policy.policy.contains("\"action\": \"accept\""))
+    assertEquals("2026-06-13T18:52:50.964Z", policy.updatedAt)
+  }
+
+  @Test
+  fun parsesEmptyPolicyResponse() {
+    val policy = AdminApi.parsePolicy("{}")
+    assertEquals("", policy.policy)
+    assertNull(policy.updatedAt)
+  }
+
+  @Test
   fun parsesPreAuthKeys() {
     val keys = AdminApi.parsePreAuthKeys(preAuthKeysJson)
     assertEquals(1, keys.size)

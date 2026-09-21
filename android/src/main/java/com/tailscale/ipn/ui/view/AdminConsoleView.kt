@@ -3,13 +3,18 @@
 
 package com.tailscale.ipn.ui.view
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -38,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -68,12 +74,21 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 
   val nodes = remember { mutableStateListOf<AdminApi.HsNode>() }
   val keys = remember { mutableStateListOf<AdminApi.HsPreAuthKey>() }
+  val users = remember { mutableStateListOf<AdminApi.HsUser>() }
+
+  var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
+  var showPolicy by remember { mutableStateOf(false) }
 
   var pendingExpire by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingDelete by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingRename by remember { mutableStateOf<AdminApi.HsNode?>(null) }
+  var pendingRoutes by remember { mutableStateOf<AdminApi.HsNode?>(null) }
+  var pendingTags by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingExpireKey by remember { mutableStateOf<AdminApi.HsPreAuthKey?>(null) }
+  var pendingRenameUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
+  var pendingDeleteUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
   var showCreateKey by remember { mutableStateOf(false) }
+  var showCreateUser by remember { mutableStateOf(false) }
 
   fun reload() {
     scope.launch {
@@ -86,6 +101,10 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         val k = withContext(Dispatchers.IO) { AdminApi.preAuthKeys() }
         keys.clear()
         keys.addAll(k)
+        val u = withContext(Dispatchers.IO) { AdminApi.users() }
+        users.clear()
+        users.addAll(u)
+        policy = withContext(Dispatchers.IO) { AdminApi.policy() }
         configured = true
         status = null
       } catch (e: Exception) {
@@ -148,14 +167,34 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 modifier = Modifier.padding(16.dp))
           }
         } else {
-          item("nodesHeader") {
-            Lists.SectionDivider(stringResource(R.string.admin_nodes))
+          item("nodesHeader") { Lists.SectionDivider(stringResource(R.string.admin_nodes)) }
+          items(nodes, key = { it.id }) { node ->
+            NodeRow(
+                node = node,
+                busy = busy,
+                onRename = { pendingRename = node },
+                onRoutes = { pendingRoutes = node },
+                onTags = { pendingTags = node },
+                onExpire = { pendingExpire = node },
+                onDelete = { pendingDelete = node })
           }
-          items(nodes, key = { it.id }) { node -> NodeRow(node, busy, onExpire = { pendingExpire = node }, onDelete = { pendingDelete = node }, onRename = { pendingRename = node }) }
 
-          item("keysHeader") {
-            Lists.SectionDivider(stringResource(R.string.admin_preauth_keys))
+          item("usersHeader") { Lists.SectionDivider(stringResource(R.string.admin_users)) }
+          items(users, key = { it.id }) { user ->
+            UserRow(
+                user = user,
+                onRename = { pendingRenameUser = user },
+                onDelete = { pendingDeleteUser = user })
           }
+          item("newUser") {
+            TextButton(
+                onClick = { showCreateUser = true },
+                modifier = Modifier.padding(horizontal = 8.dp)) {
+                  Text(stringResource(R.string.admin_new_user), color = MaterialTheme.colorScheme.link)
+                }
+          }
+
+          item("keysHeader") { Lists.SectionDivider(stringResource(R.string.admin_preauth_keys)) }
           items(keys, key = { it.id }) { key -> PreAuthKeyRow(key, onExpire = { pendingExpireKey = key }) }
           item("newKey") {
             TextButton(
@@ -163,6 +202,23 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 modifier = Modifier.padding(horizontal = 8.dp)) {
                   Text(stringResource(R.string.admin_new_preauth_key), color = MaterialTheme.colorScheme.link)
                 }
+          }
+
+          item("policyHeader") { Lists.SectionDivider(stringResource(R.string.admin_policy)) }
+          item("policyRow") {
+            ListItem(
+                headlineContent = {
+                  Text(stringResource(R.string.admin_policy_view), style = MaterialTheme.typography.bodyMedium)
+                },
+                supportingContent = {
+                  policy?.updatedAt?.let {
+                    Text(
+                        it.take(19),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  }
+                },
+                modifier = Modifier.clickable { showPolicy = true })
           }
         }
       }
@@ -200,29 +256,97 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   }
 
   pendingRename?.let { node ->
-    var newName by remember { mutableStateOf(node.displayName) }
-    AlertDialog(
-        onDismissRequest = { pendingRename = null },
-        title = { Text(stringResource(R.string.admin_action_rename)) },
-        text = {
-          OutlinedTextField(
-              value = newName, onValueChange = { newName = it }, singleLine = true)
-        },
-        confirmButton = {
-          TextButton(
-              onClick = {
-                pendingRename = null
-                scope.launch {
-                  runAction { AdminApi.renameNode(node.id, newName) }
-                  reload()
-                }
-              }) {
-                Text(stringResource(R.string.admin_action_rename))
-              }
-        },
-        dismissButton = {
-          TextButton(onClick = { pendingRename = null }) { Text(stringResource(R.string.cancel)) }
+    TextInputDialog(
+        titleRes = R.string.admin_action_rename,
+        initial = node.displayName,
+        confirmLabelRes = R.string.admin_action_rename,
+        onDismiss = { pendingRename = null },
+        onConfirm = { newName ->
+          pendingRename = null
+          scope.launch {
+            runAction { AdminApi.renameNode(node.id, newName) }
+            reload()
+          }
         })
+  }
+
+  pendingRoutes?.let { node ->
+    NodeRoutesDialog(
+        node = node,
+        onDismiss = { pendingRoutes = null },
+        onApply = { routes ->
+          pendingRoutes = null
+          scope.launch {
+            runAction { AdminApi.approveRoutes(node.id, routes) }
+            reload()
+          }
+        })
+  }
+
+  pendingTags?.let { node ->
+    TextInputDialog(
+        titleRes = R.string.admin_node_tags,
+        initial = node.tags.joinToString(", "),
+        confirmLabelRes = R.string.admin_save,
+        subtitle = stringResource(R.string.admin_tags_hint),
+        onDismiss = { pendingTags = null },
+        onConfirm = { value ->
+          pendingTags = null
+          val tags = value.split(",", " ").map { it.trim() }.filter { it.isNotEmpty() }
+          scope.launch {
+            runAction { AdminApi.setNodeTags(node.id, tags) }
+            reload()
+          }
+        })
+  }
+
+  if (showCreateUser) {
+    TextInputDialog(
+        titleRes = R.string.admin_new_user,
+        initial = "",
+        confirmLabelRes = R.string.admin_create,
+        onDismiss = { showCreateUser = false },
+        onConfirm = { name ->
+          showCreateUser = false
+          scope.launch {
+            runAction { AdminApi.createUser(name) }
+            reload()
+          }
+        })
+  }
+
+  pendingRenameUser?.let { user ->
+    TextInputDialog(
+        titleRes = R.string.admin_action_rename,
+        initial = user.name,
+        confirmLabelRes = R.string.admin_action_rename,
+        onDismiss = { pendingRenameUser = null },
+        onConfirm = { name ->
+          pendingRenameUser = null
+          scope.launch {
+            runAction { AdminApi.renameUser(user.id, name) }
+            reload()
+          }
+        })
+  }
+
+  pendingDeleteUser?.let { user ->
+    ConfirmDialog(
+        title = stringResource(R.string.admin_confirm_delete_user),
+        message = user.name,
+        confirmLabel = stringResource(R.string.admin_action_delete),
+        onDismiss = { pendingDeleteUser = null },
+        onConfirm = {
+          pendingDeleteUser = null
+          scope.launch {
+            runAction { AdminApi.deleteUser(user.id) }
+            reload()
+          }
+        })
+  }
+
+  if (showPolicy) {
+    PolicyDialog(policyText = policy?.policy.orEmpty(), onDismiss = { showPolicy = false })
   }
 
   pendingExpireKey?.let { key ->
@@ -234,7 +358,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         onConfirm = {
           pendingExpireKey = null
           scope.launch {
-            runAction { AdminApi.expirePreAuthKey(key.key) }
+            runAction { AdminApi.expirePreAuthKey(key.id) }
             reload()
           }
         })
@@ -242,13 +366,14 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 
   if (showCreateKey) {
     CreatePreAuthKeyDialog(
+        users = users,
         onDismiss = { showCreateKey = false },
         onCreate = { user, reusable, ephemeral, days ->
           showCreateKey = false
           scope.launch {
             runAction {
               AdminApi.createPreAuthKey(
-                  user = user,
+                  userId = user.id,
                   reusable = reusable,
                   ephemeral = ephemeral,
                   expirationRfc3339 =
@@ -278,6 +403,8 @@ private fun NodeRow(
     onExpire: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
+    onRoutes: () -> Unit,
+    onTags: () -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
   ListItem(
@@ -313,6 +440,18 @@ private fun NodeRow(
                 onClick = {
                   menuOpen = false
                   onRename()
+                })
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.admin_routes)) },
+                onClick = {
+                  menuOpen = false
+                  onRoutes()
+                })
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.admin_node_tags)) },
+                onClick = {
+                  menuOpen = false
+                  onTags()
                 })
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.admin_action_expire)) },
@@ -379,11 +518,47 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
 }
 
 @Composable
-private fun CreatePreAuthKeyDialog(
-    onDismiss: () -> Unit,
-    onCreate: (user: String, reusable: Boolean, ephemeral: Boolean, days: Long) -> Unit,
+private fun UserRow(
+    user: AdminApi.HsUser,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-  var user by remember { mutableStateOf("") }
+  var menuOpen by remember { mutableStateOf(false) }
+  ListItem(
+      headlineContent = { Text(user.name, style = MaterialTheme.typography.bodyMedium) },
+      trailingContent = {
+        Box {
+          IconButton(onClick = { menuOpen = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_user_actions))
+          }
+          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.admin_action_rename)) },
+                onClick = {
+                  menuOpen = false
+                  onRename()
+                })
+            DropdownMenuItem(
+                text = {
+                  Text(stringResource(R.string.admin_action_delete), color = MaterialTheme.colorScheme.error)
+                },
+                onClick = {
+                  menuOpen = false
+                  onDelete()
+                })
+          }
+        }
+      })
+}
+
+@Composable
+private fun CreatePreAuthKeyDialog(
+    users: List<AdminApi.HsUser>,
+    onDismiss: () -> Unit,
+    onCreate: (user: AdminApi.HsUser, reusable: Boolean, ephemeral: Boolean, days: Long) -> Unit,
+) {
+  var user by remember { mutableStateOf(users.firstOrNull()) }
+  var pickerOpen by remember { mutableStateOf(false) }
   var reusable by remember { mutableStateOf(true) }
   var ephemeral by remember { mutableStateOf(false) }
   var days by remember { mutableStateOf("30") }
@@ -393,11 +568,26 @@ private fun CreatePreAuthKeyDialog(
       title = { Text(stringResource(R.string.admin_new_preauth_key)) },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          OutlinedTextField(
-              value = user,
-              onValueChange = { user = it },
-              label = { Text(stringResource(R.string.admin_user)) },
-              singleLine = true)
+          Box {
+            OutlinedTextField(
+                value = user?.name.orEmpty(),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.admin_user)) },
+                modifier = Modifier.fillMaxWidth())
+            // Transparent overlay: tapping the (read-only) field opens the picker.
+            Box(Modifier.matchParentSize().clickable { pickerOpen = true })
+            DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+              users.forEach { candidate ->
+                DropdownMenuItem(
+                    text = { Text(candidate.name) },
+                    onClick = {
+                      user = candidate
+                      pickerOpen = false
+                    })
+              }
+            }
+          }
           Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = reusable, onCheckedChange = { reusable = it })
             Text(stringResource(R.string.admin_reusable))
@@ -415,10 +605,108 @@ private fun CreatePreAuthKeyDialog(
       },
       confirmButton = {
         TextButton(
-            enabled = user.isNotBlank(),
-            onClick = { onCreate(user.trim(), reusable, ephemeral, days.toLongOrNull() ?: 0L) }) {
+            enabled = user != null,
+            onClick = {
+              user?.let { onCreate(it, reusable, ephemeral, days.toLongOrNull() ?: 0L) }
+            }) {
               Text(stringResource(R.string.admin_create))
             }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+/** Routes advertised by a subnet router / exit node; the API replaces the approved set. */
+@Composable
+private fun NodeRoutesDialog(
+    node: AdminApi.HsNode,
+    onDismiss: () -> Unit,
+    onApply: (List<String>) -> Unit,
+) {
+  val all = remember(node) { (node.availableRoutes + node.approvedRoutes).distinct().sorted() }
+  val selected = remember(node) { mutableStateListOf<String>().apply { addAll(node.approvedRoutes) } }
+
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.admin_routes)) },
+      text = {
+        if (all.isEmpty()) {
+          Text(
+              stringResource(R.string.admin_no_routes),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+          Column(Modifier.verticalScroll(rememberScrollState())) {
+            all.forEach { route ->
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = selected.contains(route),
+                    onCheckedChange = { checked ->
+                      if (checked) selected.add(route) else selected.remove(route)
+                    })
+                Text(route, style = MaterialTheme.typography.bodyMedium)
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = { onApply(selected.toList()) }) {
+          Text(stringResource(R.string.admin_save))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+private fun PolicyDialog(policyText: String, onDismiss: () -> Unit) {
+  val clipboard = LocalClipboardManager.current
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.admin_policy)) },
+      text = {
+        Text(
+            policyText,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.verticalScroll(rememberScrollState()).heightIn(max = 420.dp))
+      },
+      confirmButton = {
+        TextButton(onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
+          Text(stringResource(R.string.copy_to_clipboard))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+private fun TextInputDialog(
+    @StringRes titleRes: Int,
+    initial: String,
+    @StringRes confirmLabelRes: Int,
+    subtitle: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+  var value by remember { mutableStateOf(initial) }
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(titleRes)) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          subtitle?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          OutlinedTextField(
+              value = value, onValueChange = { value = it }, singleLine = true)
+        }
+      },
+      confirmButton = {
+        TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value.trim()) }) {
+          Text(stringResource(confirmLabelRes))
+        }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }

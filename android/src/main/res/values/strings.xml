@@ -437,6 +437,17 @@
     <string name="update_up_to_date_message">Tailscale %1$s is the latest published build.</string>
     <string name="update_check_failed_title">Update check failed</string>
     <string name="in_app_admin">Tailnet admin (in-app)</string>
+    <string name="admin_users">Users</string>
+    <string name="admin_new_user">New user</string>
+    <string name="admin_confirm_delete_user">Delete this user?</string>
+    <string name="admin_user_actions">User actions</string>
+    <string name="admin_routes">Route approval</string>
+    <string name="admin_no_routes">This device advertises no routes.</string>
+    <string name="admin_node_tags">Tags</string>
+    <string name="admin_tags_hint">Comma separated; the tag: prefix is added automatically.</string>
+    <string name="admin_save">Save</string>
+    <string name="admin_policy">Access policy</string>
+    <string name="admin_policy_view">View access policy</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

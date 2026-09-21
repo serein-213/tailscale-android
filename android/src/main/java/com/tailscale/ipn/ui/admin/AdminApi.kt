@@ -46,6 +46,8 @@ object AdminApi {
       val expiry: String? = null,
       val validTags: List<String> = emptyList(),
       val tags: List<String> = emptyList(),
+      val approvedRoutes: List<String> = emptyList(),
+      val availableRoutes: List<String> = emptyList(),
       @SerialName("registerMethod") val registerMethod: String = "",
   ) {
     val displayName: String
@@ -64,6 +66,17 @@ object AdminApi {
   )
 
   @Serializable private data class NodesResponse(val nodes: List<HsNode> = emptyList())
+  @Serializable private data class UsersResponse(val users: List<HsUser> = emptyList())
+
+  @Serializable
+  data class HsPolicy(val policy: String = "", val updatedAt: String? = null)
+
+  @Serializable private data class CreateUserRequest(val name: String)
+  @Serializable private data class CreateUserResponse(val user: HsUser? = null)
+
+  @Serializable private data class NodeResponse(val node: HsNode? = null)
+  @Serializable private data class SetTagsRequest(val tags: List<String>)
+  @Serializable private data class ApproveRoutesRequest(val routes: List<String>)
 
   @Serializable
   private data class PreAuthKeysResponse(val preAuthKeys: List<HsPreAuthKey> = emptyList())
@@ -78,7 +91,7 @@ object AdminApi {
       val expiration: String? = null,
   )
 
-  @Serializable private data class RenameNodeRequest(val newName: String)
+  @Serializable private data class IdRequest(val id: String)
 
   // ------------------------------------------------------------- settings
 
@@ -115,8 +128,12 @@ object AdminApi {
 
   fun nodes(): List<HsNode> = parseNodes(request("GET", "/api/v1/node"))
 
+  fun users(): List<HsUser> = parseUsers(request("GET", "/api/v1/user"))
+
   fun preAuthKeys(): List<HsPreAuthKey> =
       parsePreAuthKeys(request("GET", "/api/v1/preauthkey"))
+
+  fun policy(): HsPolicy = parsePolicy(request("GET", "/api/v1/policy"))
 
   fun expireNode(id: String) {
     request("POST", "/api/v1/node/$id/expire")
@@ -130,12 +147,44 @@ object AdminApi {
     request("POST", "/api/v1/node/$id/rename/${urlEncode(newName)}")
   }
 
-  fun expirePreAuthKey(key: String) {
-    request("POST", "/api/v1/preauthkey/expire", """{"prefix":"${key.take(12)}"}""")
+  /** Replaces the node's tags; the "tag:" prefix is added when missing. */
+  fun setNodeTags(id: String, tags: List<String>) {
+    val body =
+        json.encodeToString(
+            SetTagsRequest.serializer(),
+            SetTagsRequest(tags.map { if (it.startsWith("tag:")) it else "tag:$it" }))
+    request("POST", "/api/v1/node/$id/tags", body)
   }
 
+  /** Approves exactly [routes]: the API replaces the approved set instead of merging into it. */
+  fun approveRoutes(id: String, routes: List<String>) {
+    val body = json.encodeToString(ApproveRoutesRequest.serializer(), ApproveRoutesRequest(routes))
+    request("POST", "/api/v1/node/$id/approve_routes", body)
+  }
+
+  fun createUser(name: String): HsUser? {
+    val body = json.encodeToString(CreateUserRequest.serializer(), CreateUserRequest(name))
+    return json.decodeFromString<CreateUserResponse>(request("POST", "/api/v1/user", body)).user
+  }
+
+  fun renameUser(id: String, newName: String) {
+    request("POST", "/api/v1/user/$id/rename/${urlEncode(newName)}")
+  }
+
+  fun deleteUser(id: String) {
+    request("DELETE", "/api/v1/user/$id")
+  }
+
+  fun expirePreAuthKey(id: String) {
+    request(
+        "POST",
+        "/api/v1/preauthkey/expire",
+        json.encodeToString(IdRequest.serializer(), IdRequest(id)))
+  }
+
+  /** [userId] is the numeric Headscale user id: the API rejects user names here. */
   fun createPreAuthKey(
-      user: String,
+      userId: String,
       reusable: Boolean,
       ephemeral: Boolean,
       expirationRfc3339: String?,
@@ -143,7 +192,7 @@ object AdminApi {
     val body =
         json.encodeToString(
             CreatePreAuthKeyRequest.serializer(),
-            CreatePreAuthKeyRequest(user, reusable, ephemeral, expirationRfc3339))
+            CreatePreAuthKeyRequest(userId, reusable, ephemeral, expirationRfc3339))
     return json.decodeFromString<PreAuthKeyResponse>(request("POST", "/api/v1/preauthkey", body))
         .preAuthKey
   }
@@ -152,6 +201,11 @@ object AdminApi {
 
   internal fun parseNodes(body: String): List<HsNode> =
       json.decodeFromString<NodesResponse>(body).nodes
+
+  internal fun parseUsers(body: String): List<HsUser> =
+      json.decodeFromString<UsersResponse>(body).users
+
+  internal fun parsePolicy(body: String): HsPolicy = json.decodeFromString<HsPolicy>(body)
 
   internal fun parsePreAuthKeys(body: String): List<HsPreAuthKey> =
       json.decodeFromString<PreAuthKeysResponse>(body).preAuthKeys

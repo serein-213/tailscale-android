@@ -439,6 +439,17 @@
     <string name="taildrop_dismiss">忽略</string>
     <string name="taildrop_done">完成</string>
     <string name="in_app_admin">Tailnet 管理（应用内）</string>
+    <string name="admin_users">用户</string>
+    <string name="admin_new_user">新建用户</string>
+    <string name="admin_confirm_delete_user">删除该用户？</string>
+    <string name="admin_user_actions">用户操作</string>
+    <string name="admin_routes">路由审批</string>
+    <string name="admin_no_routes">该设备没有对外通告的路由。</string>
+    <string name="admin_node_tags">标签</string>
+    <string name="admin_tags_hint">逗号分隔；tag: 前缀会自动补全。</string>
+    <string name="admin_save">保存</string>
+    <string name="admin_policy">访问策略</string>
+    <string name="admin_policy_view">查看访问策略</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>
