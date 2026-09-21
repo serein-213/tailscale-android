@@ -4,6 +4,7 @@
 package com.tailscale.ipn.ui.view
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +13,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
@@ -46,6 +49,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,7 +70,7 @@ import kotlinx.coroutines.withContext
  * and tailnet state at a glance.
  */
 @Composable
-fun AdminConsoleView(backToSettings: BackNavigation) {
+fun AdminConsoleView(backToSettings: BackNavigation, onOpenPolicy: () -> Unit) {
   val TAG = "AdminConsoleView"
   val scope = rememberCoroutineScope()
 
@@ -80,8 +84,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   val keys = remember { mutableStateListOf<AdminApi.HsPreAuthKey>() }
   val users = remember { mutableStateListOf<AdminApi.HsUser>() }
 
-  var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
-  var showPolicy by remember { mutableStateOf(false) }
+  var editingConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
 
   var pendingExpire by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingDelete by remember { mutableStateOf<AdminApi.HsNode?>(null) }
@@ -111,10 +114,6 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         users.addAll(u)
         configured = true
         status = null
-        // Read-only extra: a failure here must not blank out the sections above.
-        runCatching { withContext(Dispatchers.IO) { AdminApi.policy() } }
-            .onSuccess { policy = it }
-            .onFailure { TSLog.w(TAG, "policy fetch failed: ${it.message}") }
       } catch (e: Exception) {
         status = e.message ?: e.javaClass.simpleName
       } finally {
@@ -143,13 +142,45 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   }
 
   Scaffold(
-      topBar = { Header(R.string.in_app_admin, onBack = backToSettings) },
+      topBar = {
+        Header(
+            R.string.in_app_admin,
+            onBack = backToSettings,
+            actions = {
+              TextButton(onClick = { reload() }, enabled = configured && !busy) {
+                Text(stringResource(R.string.admin_refresh))
+              }
+            })
+      },
       snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
     LoadingIndicator.Wrap {
       LazyColumn(Modifier.padding(innerPadding)) {
         item("connection") {
           Lists.SectionDivider(stringResource(R.string.admin_connection))
-          Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (configured && !editingConnection) {
+            ListItem(
+                headlineContent = {
+                  Text(baseUrl, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                },
+                supportingContent = {
+                  Text(
+                      status ?: stringResource(R.string.admin_key_saved),
+                      style = MaterialTheme.typography.bodySmall,
+                      color =
+                          if (status != null) MaterialTheme.colorScheme.error
+                          else MaterialTheme.colorScheme.onSurfaceVariant,
+                      maxLines = 2,
+                      overflow = TextOverflow.Ellipsis)
+                },
+                trailingContent = {
+                  TextButton(onClick = { editingConnection = true }) {
+                    Text(stringResource(R.string.admin_edit))
+                  }
+                })
+          } else {
+            Column(
+                Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
@@ -168,6 +199,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                   enabled = !busy,
                   onClick = {
                     AdminApi.saveConnection(baseUrl, apiKey)
+                    editingConnection = false
                     reload()
                   }) {
                     Text(stringResource(R.string.admin_save_and_test))
@@ -179,6 +211,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                     color = MaterialTheme.colorScheme.error,
                     maxLines = 3)
               }
+            }
             }
           }
         }
@@ -192,7 +225,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 modifier = Modifier.padding(16.dp))
           }
         } else {
-          item("nodesHeader") { Lists.SectionDivider(stringResource(R.string.admin_nodes)) }
+          item("nodesHeader") {
+            Lists.SectionDivider("${stringResource(R.string.admin_nodes)} (${nodes.size})")
+          }
           items(nodes, key = { it.id }) { node ->
             NodeRow(
                 node = node,
@@ -204,7 +239,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 onDelete = { pendingDelete = node })
           }
 
-          item("usersHeader") { Lists.SectionDivider(stringResource(R.string.admin_users)) }
+          item("usersHeader") {
+            Lists.SectionDivider("${stringResource(R.string.admin_users)} (${users.size})")
+          }
           items(users, key = { it.id }) { user ->
             UserRow(
                 user = user,
@@ -219,7 +256,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 }
           }
 
-          item("keysHeader") { Lists.SectionDivider(stringResource(R.string.admin_preauth_keys)) }
+          item("keysHeader") {
+            Lists.SectionDivider("${stringResource(R.string.admin_preauth_keys)} (${keys.size})")
+          }
           items(keys, key = { it.id }) { key -> PreAuthKeyRow(key, onExpire = { pendingExpireKey = key }) }
           item("newKey") {
             TextButton(
@@ -235,15 +274,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 headlineContent = {
                   Text(stringResource(R.string.admin_policy_view), style = MaterialTheme.typography.bodyMedium)
                 },
-                supportingContent = {
-                  policy?.updatedAt?.let {
-                    Text(
-                        it.take(19),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                  }
-                },
-                modifier = Modifier.clickable { showPolicy = true })
+                modifier = Modifier.clickable { onOpenPolicy() })
           }
         }
       }
@@ -362,10 +393,6 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         })
   }
 
-  if (showPolicy) {
-    PolicyDialog(policyText = policy?.policy.orEmpty(), onDismiss = { showPolicy = false })
-  }
-
   pendingExpireKey?.let { key ->
     ConfirmDialog(
         title = stringResource(R.string.admin_action_expire),
@@ -415,14 +442,16 @@ private fun NodeRow(
 ) {
   var menuOpen by remember { mutableStateOf(false) }
   ListItem(
+      leadingContent = {
+        Box(
+            Modifier.size(10.dp)
+                .background(
+                    if (node.online) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outlineVariant,
+                    CircleShape))
+      },
       headlineContent = {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          Text(node.displayName, style = MaterialTheme.typography.bodyMedium)
-          Text(
-              if (node.online) "●" else "○",
-              style = MaterialTheme.typography.bodySmall,
-              color = if (node.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Text(node.displayName, style = MaterialTheme.typography.bodyMedium)
       },
       supportingContent = {
         val parts = mutableListOf<String>()
@@ -666,27 +695,6 @@ private fun NodeRoutesDialog(
       confirmButton = {
         TextButton(onClick = { onApply(selected.toList()) }) {
           Text(stringResource(R.string.admin_save))
-        }
-      },
-      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
-}
-
-@Composable
-private fun PolicyDialog(policyText: String, onDismiss: () -> Unit) {
-  val clipboard = LocalClipboardManager.current
-  AlertDialog(
-      onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.admin_policy)) },
-      text = {
-        Text(
-            policyText,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.verticalScroll(rememberScrollState()).heightIn(max = 420.dp))
-      },
-      confirmButton = {
-        TextButton(onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
-          Text(stringResource(R.string.copy_to_clipboard))
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })

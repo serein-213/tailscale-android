@@ -448,6 +448,10 @@
     <string name="admin_save">Save</string>
     <string name="admin_policy">Access policy</string>
     <string name="admin_policy_view">View access policy</string>
+    <string name="admin_refresh">Refresh</string>
+    <string name="admin_edit">Edit</string>
+    <string name="admin_key_saved">API key saved</string>
+    <string name="admin_policy_updated">Updated %1$s</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

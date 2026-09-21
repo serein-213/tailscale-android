@@ -450,6 +450,10 @@
     <string name="admin_save">保存</string>
     <string name="admin_policy">访问策略</string>
     <string name="admin_policy_view">查看访问策略</string>
+    <string name="admin_refresh">刷新</string>
+    <string name="admin_edit">编辑</string>
+    <string name="admin_key_saved">API 密钥已保存</string>
+    <string name="admin_policy_updated">更新于 %1$s</string>
     <string name="admin_connection">连接</string>
     <string name="admin_base_url">Headscale 地址</string>
     <string name="admin_api_key">API 密钥</string>
