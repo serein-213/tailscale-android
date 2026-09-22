@@ -56,6 +56,7 @@ import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.admin.PolicyEdit
+import com.tailscale.ipn.ui.admin.PolicyValidate
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
 import kotlinx.serialization.json.JsonArray
@@ -63,6 +64,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+
+/** Sections whose entries can be added from the structured view. */
+private val policyAddableSections = setOf("hosts", "groups", "tagOwners")
 
 /**
  * The access policy, laid out instead of dumped: sections that expand, one block per rule, and a
@@ -90,11 +94,21 @@ fun AdminPolicyTab(
   var backup by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
   var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
+  var addingTo by remember { mutableStateOf<String?>(null) }
   var query by remember { mutableStateOf("") }
   val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
   val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
   val matches = remember(filtered) { filtered?.let { PolicyDoc.size(it) } ?: 0 }
   val total = remember(doc) { doc?.let { PolicyDoc.size(it) } ?: 0 }
+  val problems = remember(draft) { doc?.let { PolicyValidate.problems(it) } ?: emptyList() }
+  val hosts = remember(doc) { (doc?.get("hosts") as? JsonObject)?.keys.orEmpty().toList() }
+  val existingDst =
+      remember(doc) {
+        (doc?.get("acls") as? JsonArray)
+            ?.mapNotNull { it as? JsonObject }
+            ?.flatMap { PolicyDoc.stringsOf(it["dst"]) }
+            .orEmpty()
+      }
   val suggestions =
       remember(doc, users, tags) {
         policySuggestions(
@@ -132,6 +146,15 @@ fun AdminPolicyTab(
                           PolicyEdit.replace(draft, edit.path, PolicyEdit.quote(it))
                         }
                     is StructuredEdit.RemoveEntry -> PolicyEdit.remove(draft, edit.path)
+                    is StructuredEdit.AddEntry ->
+                        PolicyEdit.addKey(
+                            draft,
+                            listOf(PolicyEdit.Step.Key(edit.section)),
+                            edit.name,
+                            when (edit.value) {
+                              JsonFragment.EMPTY_ARRAY -> "[]"
+                              JsonFragment.EMPTY_STRING -> "\"\""
+                            })
                     is StructuredEdit.AddRule ->
                         PolicyEdit.appendTo(
                             draft,
@@ -224,16 +247,45 @@ fun AdminPolicyTab(
                 }
           }
         }
+    addingTo?.let { section ->
+      AddEntryDialog(
+          section = section,
+          onDismiss = { addingTo = null },
+          onAdd = { name, value ->
+            addingTo = null
+            structured.onEdit(
+                StructuredEdit.AddEntry(
+                    section = section, name = name, value = JsonFragment.EMPTY_ARRAY))
+            if (section == "hosts" && value.isNotEmpty()) {
+              draft =
+                  PolicyEdit.replace(
+                          draft,
+                          listOf(PolicyEdit.Step.Key(section), PolicyEdit.Step.Key(name)),
+                          PolicyEdit.quote(value))
+                      ?: draft
+            }
+          })
+    }
+
     if (dirty && !editing) {
       Row(
           Modifier.fillMaxWidth()
               .background(MaterialTheme.colorScheme.secondaryContainer)
               .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
           verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.policy_edit_modified),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+              Text(
+                  stringResource(R.string.policy_edit_modified),
+                  style = MaterialTheme.typography.bodySmall)
+              if (problems.isNotEmpty()) {
+                Text(
+                    stringResource(
+                        R.string.policy_edit_problems, problems.size, problems.first().message),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2)
+              }
+            }
             TextButton(onClick = { draft = policyText }) {
               Text(stringResource(R.string.policy_edit_discard))
             }
@@ -301,7 +353,12 @@ fun AdminPolicyTab(
         RawPolicyText(policyText)
       }
       showRaw -> RawPolicyText(policyText)
-      filtered == null -> StructuredPolicy(doc, editor = structured, onEntry = { entryTarget = it })
+      filtered == null ->
+          StructuredPolicy(
+              doc,
+              editor = structured,
+              onEntry = { entryTarget = it },
+              onAddEntry = { addingTo = it })
       query.isNotBlank() && matches == 0 ->
           Text(
               stringResource(R.string.policy_search_none),
@@ -313,7 +370,8 @@ fun AdminPolicyTab(
               filtered,
               forceExpanded = query.isNotBlank(),
               editor = structured,
-              onEntry = { entryTarget = it })
+              onEntry = { entryTarget = it },
+              onAddEntry = { addingTo = it })
     }
   }
 
@@ -322,6 +380,7 @@ fun AdminPolicyTab(
         target = target,
         editor = structured,
         suggestions = suggestions,
+        dstChoices = dstSuggestions(hosts = hosts, existingDst = existingDst, base = suggestions),
         onDismiss = { entryTarget = null })
   }
 
@@ -414,6 +473,7 @@ private fun StructuredPolicy(
     forceExpanded: Boolean = false,
     editor: StructuredEditor? = null,
     onEntry: (EntryTarget) -> Unit = {},
+    onAddEntry: ((String) -> Unit)? = null,
 ) {
   val sections = remember(doc) { PolicyDoc.sections(doc) }
   // Rules are what people come here for; the rest stays collapsed.
@@ -428,7 +488,8 @@ private fun StructuredPolicy(
             name = key,
             value = value,
             open = open,
-            onToggle = { expanded[key] = !open })
+            onToggle = { expanded[key] = !open },
+            onAdd = if (editor != null && key in policyAddableSections) onAddEntry else null)
       }
       if (open) {
         when (value) {
@@ -472,6 +533,7 @@ private fun SectionHeader(
     value: JsonElement?,
     open: Boolean,
     onToggle: () -> Unit,
+    onAdd: ((String) -> Unit)? = null,
 ) {
   val count = PolicyDoc.countOf(value)
   ListItemShell(onClick = onToggle) {
@@ -491,6 +553,9 @@ private fun SectionHeader(
             stringResource(R.string.policy_items, it),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      onAdd?.let { add ->
+        TextButton(onClick = { add(name) }) { Text(stringResource(R.string.policy_edit_add_value)) }
       }
       Icon(
           if (open) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,

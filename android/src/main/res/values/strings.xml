@@ -562,4 +562,8 @@
   <string name="policy_edit_new_rule">新规则（点开可改 src / dst / 动作）</string>
   <string name="policy_edit_action_accept">允许</string>
   <string name="policy_edit_action_deny">拒绝</string>
+  <string name="policy_edit_new_entry">新增 %1$s 条目</string>
+  <string name="policy_edit_entry_name">名称</string>
+  <string name="policy_edit_entry_address">地址</string>
+  <string name="policy_edit_problems">%1$d 处会被服务端拒绝：%2$s</string>
 </resources>

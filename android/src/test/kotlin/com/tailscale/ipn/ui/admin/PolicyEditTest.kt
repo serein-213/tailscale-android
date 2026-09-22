@@ -153,4 +153,23 @@ class PolicyEditTest {
   }
 
   private fun step(name: String) = PolicyEdit.Step.Key(name)
+
+  @Test
+  fun addsKeysToExistingObjectsAndCreatesMissingSections() {
+    val withHost =
+        requireNotNull(PolicyEdit.addKey(policy, listOf(step("hosts")), "vps", "\"100.64.0.15\""))
+    assertEquals(3, (parse(withHost)["hosts"] as JsonObject).size)
+    assertEquals("100.64.0.15", (parse(withHost)["hosts"] as JsonObject).getValue("vps").jsonPrimitive.content)
+    assertTrue(withHost.contains("// family may reach the NAS"))
+
+    // A section that does not exist yet is created first, then filled.
+    val withSection =
+        requireNotNull(PolicyEdit.addKey("{\n  \"acls\": []\n}", emptyList(), "hosts", "{}"))
+    val filled = requireNotNull(PolicyEdit.addKey(withSection, listOf(step("hosts")), "nas", "\"100.64.0.9\""))
+    assertEquals("100.64.0.9", (parse(filled)["hosts"] as JsonObject).getValue("nas").jsonPrimitive.content)
+
+    // Taking a name that is already there would shadow it.
+    assertNull(PolicyEdit.addKey(policy, listOf(step("hosts")), "nas", "\"10.0.0.1\""))
+    assertNull(PolicyEdit.addKey("[]", emptyList(), "hosts", "{}"))
+  }
 }

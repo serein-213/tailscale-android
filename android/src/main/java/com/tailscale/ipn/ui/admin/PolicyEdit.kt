@@ -64,6 +64,50 @@ object PolicyEdit {
     return text.substring(0, lastEnd) + "$comma\n$element$json" + text.substring(lastEnd)
   }
 
+  /**
+   * Adds `"name": json` to the object at [path], or to the document root when [path] is empty.
+   * Refuses a name that is already taken, so an add can never silently shadow an entry.
+   */
+  fun addKey(text: String, path: List<Step>, name: String, json: String): String? {
+    val open =
+        if (path.isEmpty()) {
+          skipTrivia(text, 0).takeIf { text.getOrNull(it) == '{' } ?: return null
+        } else {
+          val member = locate(text, path) ?: return null
+          member.valueStart.takeIf { text.getOrNull(it) == '{' } ?: return null
+        }
+    if (child(text, open, Step.Key(name)) != null) return null
+    val close = (matchingBracket(text, open) ?: return null) - 1
+    val indent = lineIndent(text, open)
+    val entry = "$indent  ${quote(name)}: $json"
+    if (text.substring(open + 1, close).isBlank()) {
+      return text.substring(0, open + 1) + "\n$entry\n$indent" + text.substring(open + 1)
+    }
+    // Splice after the last member so the original line break before "}" stays put.
+    val lastEnd = lastMemberEnd(text, open, close) ?: return null
+    val between = text.substring(lastEnd, close)
+    val comma = if (between.contains(',')) "" else ","
+    return text.substring(0, lastEnd) + "$comma\n$entry" + text.substring(lastEnd)
+  }
+
+  /** End (exclusive) of the last member's value in the object between [open] and [close]. */
+  private fun lastMemberEnd(text: String, open: Int, close: Int): Int? {
+    var last: Int? = null
+    var i = skipTrivia(text, open + 1)
+    while (i < close && text[i] != '}') {
+      val keyEnd = matchString(text, i)
+      if (keyEnd < 0) return last
+      val colon = skipTrivia(text, keyEnd)
+      if (text.getOrNull(colon) != ':') return last
+      val valueStart = skipTrivia(text, colon + 1)
+      val valueEnd = valueEnd(text, valueStart) ?: return last
+      last = valueEnd
+      i = skipTrivia(text, valueEnd)
+      if (text.getOrNull(i) == ',') i = skipTrivia(text, i + 1)
+    }
+    return last
+  }
+
   /** Replaces the array at [path] with [values], rendered in the policy's own style. */
   fun replaceArray(text: String, path: List<Step>, values: List<String>): String? {
     val member = locate(text, path) ?: return null

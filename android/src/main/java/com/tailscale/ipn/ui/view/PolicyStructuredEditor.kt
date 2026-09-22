@@ -50,6 +50,9 @@ sealed interface StructuredEdit {
   /** The rule, member or hosts entry at [path] goes away. */
   data class RemoveEntry(val path: List<PolicyEdit.Step>) : StructuredEdit
 
+  /** A new named entry (a host, a group, a tag owner) is added to [section]. */
+  data class AddEntry(val section: String, val name: String, val value: JsonFragment) : StructuredEdit
+
   /** A new rule is appended to [section]. */
   data class AddRule(
       val section: String,
@@ -57,6 +60,15 @@ sealed interface StructuredEdit {
       val src: List<String>,
       val dst: List<String>
   ) : StructuredEdit
+}
+
+/** How a new entry's value should be rendered when it is spliced in. */
+enum class JsonFragment {
+  /** An empty array: members are added afterwards. */
+  EMPTY_ARRAY,
+
+  /** An empty string: the address is filled in afterwards. */
+  EMPTY_STRING,
 }
 
 /** What the structured view may offer, and who to tell when the user picks something. */
@@ -96,12 +108,32 @@ fun policySuggestions(
         .distinct()
         .sorted()
 
+/**
+ * Values a dst may take: what the policy already uses plus every host with a wildcard port, since a
+ * dst without a port is the mistake the server reports first.
+ */
+fun dstSuggestions(
+    hosts: List<String>,
+    existingDst: List<String>,
+    base: List<String>,
+): List<String> =
+    buildList {
+          addAll(base.filterNot { it.contains('.') || it == "*" })
+          add("*:*")
+          add("autogroup:internet:*")
+          addAll(existingDst)
+          addAll(hosts.map { "$it:*" })
+        }
+        .distinct()
+        .sorted()
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PolicyEntrySheet(
     target: EntryTarget,
     editor: StructuredEditor,
     suggestions: List<String>,
+    dstChoices: List<String>,
     onDismiss: () -> Unit,
 ) {
   var action by remember(target) { mutableStateOf(target.action ?: "accept") }
@@ -149,7 +181,7 @@ fun PolicyEntrySheet(
         ValueEditor(
             label = stringResource(R.string.policy_field_dst),
             values = dst,
-            suggestions = suggestions,
+            suggestions = dstChoices,
             onAdd = { picked ->
               if (picked !in dst) {
                 dst = dst + picked
@@ -265,6 +297,52 @@ private fun ValueRow(value: String, onRemove: () -> Unit) {
       Text(stringResource(R.string.policy_edit_remove), color = MaterialTheme.colorScheme.error)
     }
   }
+}
+
+/**
+ * Name (and for hosts an address) for a new entry. The value is written as an empty container so the
+ * entry appears immediately and can be filled in with the same sheet every other entry uses.
+ */
+@Composable
+fun AddEntryDialog(
+    section: String,
+    onDismiss: () -> Unit,
+    onAdd: (name: String, value: String) -> Unit,
+) {
+  var name by remember { mutableStateOf("") }
+  var value by remember { mutableStateOf("") }
+  val hosts = section == "hosts"
+  val validName = name.isNotBlank() && !name.contains(' ')
+
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.policy_edit_new_entry, section)) },
+      text = {
+        Column {
+          OutlinedTextField(
+              value = name,
+              onValueChange = { name = it },
+              singleLine = true,
+              label = { Text(stringResource(R.string.policy_edit_entry_name)) },
+              modifier = Modifier.fillMaxWidth(),
+              textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+          if (hosts) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.policy_edit_entry_address)) },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(enabled = validName, onClick = { onAdd(name.trim(), value.trim()) }) {
+          Text(stringResource(R.string.policy_edit_add))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
 
 /** Free text or one of the values the policy already knows about. */
