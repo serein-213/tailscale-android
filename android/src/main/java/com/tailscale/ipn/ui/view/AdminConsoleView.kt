@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -45,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -125,6 +129,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
   var policyLoading by remember { mutableStateOf(false) }
 
+  var selecting by remember { mutableStateOf(false) }
+  var selected by remember { mutableStateOf(emptySet<String>()) }
+  var pendingBulk by remember { mutableStateOf<BulkAction?>(null) }
   var pendingExpire by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingDelete by remember { mutableStateOf<AdminApi.HsNode?>(null) }
   var pendingRename by remember { mutableStateOf<AdminApi.HsNode?>(null) }
@@ -220,6 +227,53 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
         false
       }
 
+  /** Devices the selection currently points at. Resolved from the live list, never held as objects. */
+  val selectedNodes = nodes.filter { it.id in selected }
+
+  /**
+   * Expires or deletes every selected device, best effort: one failure does not stop the rest, and
+   * the snackbar reports both numbers. Expiring is reversible (the device signs in again); deleting
+   * is not.
+   */
+  fun runBulk(action: BulkAction) {
+    val targets = selectedNodes
+    if (targets.isEmpty()) return
+    scope.launch {
+      busy = true
+      status = null
+      var failed = 0
+      var firstError: String? = null
+      for (node in targets) {
+        try {
+          withContext(Dispatchers.IO) {
+            when (action) {
+              BulkAction.EXPIRE -> AdminApi.expireNode(node.id)
+              BulkAction.DELETE -> AdminApi.deleteNode(node.id)
+            }
+          }
+        } catch (e: Exception) {
+          failed++
+          if (firstError == null) firstError = e.message ?: e.javaClass.simpleName
+          TSLog.w(TAG, "bulk ${action.name.lowercase()} failed for ${node.displayName}: ${e.message}")
+        }
+      }
+      busy = false
+      selecting = false
+      selected = emptySet()
+      reload()
+      val done = targets.size - failed
+      val app = App.get()
+      if (failed > 0) status = firstError
+      snackbarHostState.showSnackbar(
+          when {
+            failed > 0 -> app.getString(R.string.admin_bulk_partly_failed, done, failed)
+            action == BulkAction.EXPIRE -> app.getString(R.string.admin_bulk_expired, done)
+            else -> app.getString(R.string.admin_bulk_deleted, done)
+          },
+          withDismissAction = true)
+    }
+  }
+
   /** Devices that advertise or already have routes: the route page is about these. */
   val routableNodes =
       nodes.filter { it.availableRoutes.isNotEmpty() || it.approvedRoutes.isNotEmpty() }
@@ -314,6 +368,25 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                 0 -> {
                   val visibleNodes = NodeList.search(nodes, nodeQuery)
                   Column(Modifier.fillMaxSize()) {
+                    if (selecting) {
+                      SelectionBar(
+                          count = selected.size,
+                          allSelected =
+                              visibleNodes.isNotEmpty() && visibleNodes.all { it.id in selected },
+                          enabled = !busy && visibleNodes.isNotEmpty(),
+                          onToggleAll = {
+                            val ids = visibleNodes.map { it.id }.toSet()
+                            selected =
+                                if (ids.all { it in selected }) selected - ids else selected + ids
+                          },
+                          onCancel = {
+                            selecting = false
+                            selected = emptySet()
+                          },
+                          onExpire = { pendingBulk = BulkAction.EXPIRE },
+                          onDelete = { pendingBulk = BulkAction.DELETE })
+                    } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = nodeQuery,
                         onValueChange = { nodeQuery = it },
@@ -329,7 +402,18 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                           }
                         },
                         placeholder = { Text(stringResource(R.string.admin_search_devices)) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
+                        modifier =
+                            Modifier.weight(1f).padding(start = 12.dp, top = 6.dp, bottom = 6.dp))
+                    TextButton(
+                        enabled = nodes.isNotEmpty() && !busy,
+                        onClick = {
+                          selecting = true
+                          selected = emptySet()
+                        }) {
+                          Text(stringResource(R.string.admin_select))
+                        }
+                    }
+                    }
                     LazyColumn(
                         Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 96.dp)) {
@@ -344,6 +428,13 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                             NodeRow(
                                 node = node,
                                 busy = busy,
+                                selecting = selecting,
+                                selected = node.id in selected,
+                                onToggleSelected = {
+                                  selected =
+                                      if (node.id in selected) selected - node.id
+                                      else selected + node.id
+                                },
                                 expanded = expandedNode == node.id,
                                 onToggleExpanded = {
                                   expandedNode = if (expandedNode == node.id) null else node.id
@@ -460,6 +551,28 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
           AdminApi.saveConnection(baseUrl, apiKey)
           showConnection = false
           reload()
+        })
+  }
+
+  pendingBulk?.let { action ->
+    val targets = selectedNodes
+    val deleting = action == BulkAction.DELETE
+    ConfirmDialog(
+        title =
+            stringResource(
+                if (deleting) R.string.admin_bulk_delete_title else R.string.admin_bulk_expire_title,
+                targets.size),
+        message =
+            stringResource(
+                if (deleting) R.string.admin_bulk_delete_message
+                else R.string.admin_bulk_expire_message),
+        confirmLabel =
+            stringResource(
+                if (deleting) R.string.admin_action_delete else R.string.admin_action_expire),
+        onDismiss = { pendingBulk = null },
+        onConfirm = {
+          pendingBulk = null
+          runBulk(action)
         })
   }
 
@@ -604,6 +717,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 private fun NodeRow(
     node: AdminApi.HsNode,
     busy: Boolean,
+    selecting: Boolean,
+    selected: Boolean,
+    onToggleSelected: () -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onExpire: () -> Unit,
@@ -615,7 +731,15 @@ private fun NodeRow(
   val onlineLabel = stringResource(R.string.admin_device_online)
   val offlineLabel = stringResource(R.string.admin_device_offline)
   ListItem(
+      modifier = if (selecting) Modifier.clickable(onClick = onToggleSelected) else Modifier,
       leadingContent = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (selecting) {
+          Checkbox(
+              checked = selected,
+              onCheckedChange = { onToggleSelected() },
+              modifier = Modifier.semantics { contentDescription = node.displayName })
+        }
         Box(
             Modifier.size(10.dp)
                 .background(
@@ -626,6 +750,7 @@ private fun NodeRow(
                   contentDescription =
                       if (node.online) onlineLabel else offlineLabel
                 })
+        }
       },
       headlineContent = {
         Text(node.displayName, style = MaterialTheme.typography.bodyMedium)
@@ -644,6 +769,7 @@ private fun NodeRow(
       },
       trailingContent = {
         Row(verticalAlignment = Alignment.CenterVertically) {
+          if (!selecting) {
           IconButton(onClick = onToggleExpanded) {
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -670,6 +796,7 @@ private fun NodeRow(
               menuOpen = false
               onDelete()
             }
+          }
           }
           }
         }
@@ -1196,6 +1323,51 @@ private fun CompactMenuItem(
       color =
           if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
       modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp))
+}
+
+/** Bulk operations offered while devices are selected. */
+private enum class BulkAction {
+  EXPIRE,
+  DELETE,
+}
+
+/** Replaces the search row while devices are selected: count, select-all and the two operations. */
+@Composable
+private fun SelectionBar(
+    count: Int,
+    allSelected: Boolean,
+    enabled: Boolean,
+    onToggleAll: () -> Unit,
+    onCancel: () -> Unit,
+    onExpire: () -> Unit,
+    onDelete: () -> Unit,
+) {
+  Row(
+      Modifier.fillMaxWidth()
+          .background(MaterialTheme.colorScheme.secondaryContainer)
+          .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onCancel) {
+          Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel))
+        }
+        Text(
+            stringResource(R.string.admin_selected_count, count),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f))
+        TextButton(onClick = onToggleAll, enabled = enabled) {
+          Text(
+              stringResource(
+                  if (allSelected) R.string.admin_select_none else R.string.admin_select_all))
+        }
+        TextButton(onClick = onExpire, enabled = enabled && count > 0) {
+          Text(stringResource(R.string.admin_action_expire))
+        }
+        TextButton(onClick = onDelete, enabled = enabled && count > 0) {
+          Text(
+              stringResource(R.string.admin_action_delete),
+              color = MaterialTheme.colorScheme.error)
+        }
+      }
 }
 
 @Composable

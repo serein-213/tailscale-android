@@ -8,6 +8,8 @@ import kotlinx.serialization.json.jsonArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.serialization.json.JsonArray
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class PolicyDocTest {
@@ -86,5 +88,58 @@ class PolicyDocTest {
     assertEquals(2, PolicyDoc.countOf(doc["acls"]))
     assertNull(PolicyDoc.countOf(doc["randomizeClientPort"]))
     assertTrue(PolicyDoc.stringsOf(null).isEmpty())
+  }
+
+  // ------------------------------------------------------------------ search
+
+  private val policy =
+      PolicyDoc.parse(
+          """
+          {
+            // bookkeeping
+            "#tags": ["#tag:keep"],
+            "groups": { "group:family": ["echo@", "duck@"], "group:work": ["fjj@"] },
+            "hosts": { "nas": "100.64.0.9" },
+            "acls": [
+              { "action": "accept", "src": ["group:family"], "dst": ["nas:8000"] },
+              { "action": "accept", "src": ["group:work"], "dst": ["*:*"] }
+            ]
+          }
+          """
+              .trimIndent())!!
+
+  @Test
+  fun filterKeepsOnlyMatchingRules() {
+    val hit = PolicyDoc.filter(policy, "nas")
+    // Both the host definition and the rule that references it.
+    assertEquals(listOf("hosts", "acls"), PolicyDoc.visibleKeys(hit))
+    assertEquals("100.64.0.9", (hit["hosts"] as JsonObject).getValue("nas").toString().trim('"'))
+    val rules = hit["acls"] as JsonArray
+    assertEquals(1, rules.size)
+    assertTrue(rules[0].toString().contains("group:family"))
+  }
+
+  @Test
+  fun filterIsCaseInsensitiveAndSeesNestedValues() {
+    assertTrue(PolicyDoc.filter(policy, "DUCK").toString().contains("group:family"))
+    assertTrue(PolicyDoc.filter(policy, "8000").toString().contains("acls"))
+  }
+
+  @Test
+  fun filterKeepsSectionsNamedByTheQuery() {
+    val hit = PolicyDoc.filter(policy, "groups")
+    assertEquals(listOf("groups"), PolicyDoc.visibleKeys(hit))
+    assertEquals(2, (hit["groups"] as JsonObject).size)
+  }
+
+  @Test
+  fun filterDropsEverythingWhenNothingMatches() {
+    assertEquals(0, PolicyDoc.visibleKeys(PolicyDoc.filter(policy, "zzz")).size)
+    assertEquals(0, PolicyDoc.visibleKeys(PolicyDoc.filter(policy, "#tags")).size)
+  }
+
+  @Test
+  fun filterWithBlankQueryReturnsTheWholePolicy() {
+    assertSame(policy, PolicyDoc.filter(policy, "   "))
   }
 }

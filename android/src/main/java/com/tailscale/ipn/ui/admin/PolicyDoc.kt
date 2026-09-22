@@ -41,6 +41,44 @@ object PolicyDoc {
     return knownSections.filter { it in visible } + visible.filterNot { it in knownSections }
   }
 
+  /**
+   * Keeps only the entries whose JSON mentions [query] (case-insensitive), so a rule can be found
+   * in an 8KB policy without reading it. A section is kept whole when its own name matches, and
+   * dropped when nothing inside it does.
+   */
+  fun filter(policy: JsonObject, query: String): JsonObject {
+    val needle = query.trim().lowercase()
+    if (needle.isEmpty()) return policy
+    val kept = LinkedHashMap<String, JsonElement>()
+    for ((key, value) in policy) {
+      if (key.startsWith("#")) continue
+      if (key.lowercase().contains(needle)) {
+        kept[key] = value
+        continue
+      }
+      when {
+        key.lowercase().contains(needle) -> kept[key] = value
+        value is JsonArray -> {
+          val matches = value.filter { it.toString().lowercase().contains(needle) }
+          if (matches.isNotEmpty()) kept[key] = JsonArray(matches)
+        }
+        value is JsonObject -> {
+          val matches =
+              value.filterKeys {
+                it.lowercase().contains(needle) ||
+                    value.getValue(it).toString().lowercase().contains(needle)
+              }
+          if (matches.isNotEmpty()) kept[key] = JsonObject(matches)
+        }
+        value.toString().lowercase().contains(needle) -> kept[key] = value
+      }
+    }
+    return JsonObject(kept)
+  }
+
+  /** Total entries a policy holds, for the "N of M" hint while searching. */
+  fun size(policy: JsonObject): Int = visibleKeys(policy).sumOf { countOf(policy[it]) ?: 0 }
+
   /** Keys the admin console stores as bookkeeping ("#…") are not part of the policy. */
   fun visibleKeys(obj: JsonObject): List<String> = obj.keys.filterNot { it.startsWith("#") }
 

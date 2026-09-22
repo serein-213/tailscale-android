@@ -19,8 +19,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -82,7 +84,15 @@ fun AdminPolicyTab(
   var pendingSave by remember { mutableStateOf<String?>(null) }
   var confirmSave by remember { mutableStateOf(false) }
   var backup by remember { mutableStateOf<String?>(null) }
+  var searching by remember { mutableStateOf(false) }
+  var query by remember { mutableStateOf("") }
   val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
+  val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
+  val matches = remember(filtered) { filtered?.let { PolicyDoc.size(it) } ?: 0 }
+  val total = remember(doc) { doc?.let { PolicyDoc.size(it) } ?: 0 }
+
+  // Matches are only visible in the structured view.
+  LaunchedEffect(query) { if (query.isNotBlank()) showRaw = false }
 
   LaunchedEffect(policyText, editing) {
     if (!editing) draft = policyText
@@ -113,6 +123,13 @@ fun AdminPolicyTab(
                 onClick = { showRaw = true })
           }
           Box(Modifier.weight(1f))
+          if (!editing && doc != null) {
+            IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
+              Icon(
+                  if (searching) Icons.Default.Close else Icons.Default.Search,
+                  contentDescription = stringResource(R.string.admin_search_devices))
+            }
+          }
           if (editing) {
             TextButton(
                 enabled = backup != null && !saving,
@@ -140,6 +157,34 @@ fun AdminPolicyTab(
                 }
           }
         }
+    if (searching && doc != null) {
+      OutlinedTextField(
+          value = query,
+          onValueChange = { query = it },
+          singleLine = true,
+          leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+          trailingIcon = {
+            if (query.isNotEmpty()) {
+              IconButton(onClick = { query = "" }) {
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.admin_clear))
+              }
+            }
+          },
+          placeholder = { Text(stringResource(R.string.policy_search_hint)) },
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
+      if (query.isNotBlank()) {
+        Text(
+            stringResource(
+                if (matches == 0) R.string.policy_search_none else R.string.policy_search_count,
+                matches,
+                total),
+            style = MaterialTheme.typography.labelMedium,
+            color =
+                if (matches == 0) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
+      }
+    }
     updatedAt?.let {
       Text(
           stringResource(R.string.admin_policy_updated, it.replace("T", " ").take(19)),
@@ -171,7 +216,14 @@ fun AdminPolicyTab(
         RawPolicyText(policyText)
       }
       showRaw -> RawPolicyText(policyText)
-      else -> StructuredPolicy(doc)
+      filtered == null -> StructuredPolicy(doc)
+      query.isNotBlank() && matches == 0 ->
+          Text(
+              stringResource(R.string.policy_search_none),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.padding(16.dp))
+      else -> StructuredPolicy(filtered, forceExpanded = query.isNotBlank())
     }
   }
 
@@ -259,7 +311,7 @@ private fun RawPolicyText(text: String) {
 }
 
 @Composable
-private fun StructuredPolicy(doc: JsonObject) {
+private fun StructuredPolicy(doc: JsonObject, forceExpanded: Boolean = false) {
   val sections = remember(doc) { PolicyDoc.sections(doc) }
   // Rules are what people come here for; the rest stays collapsed.
   val expanded = remember(doc) { mutableStateMapOf<String, Boolean>().apply { put("acls", true) } }
@@ -267,7 +319,7 @@ private fun StructuredPolicy(doc: JsonObject) {
   LazyColumn(Modifier.fillMaxSize()) {
     sections.forEach { key ->
       val value = doc[key]
-      val open = expanded[key] == true
+      val open = forceExpanded || expanded[key] == true
       item("section-$key") {
         SectionHeader(
             name = key,
