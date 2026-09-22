@@ -565,4 +565,5 @@
   <string name="policy_edit_raw_hint">编辑原文 huJSON</string>
   <string name="policy_edit_discard_title">放弃这些修改？</string>
   <string name="policy_edit_discard_message">结构化编辑产生的改动会被丢弃，策略回到上一次读取或保存的样子。</string>
+  <string name="policy_edit_policy">编辑策略</string>
 </resources>

@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -43,6 +44,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
@@ -141,7 +143,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var pendingExpireKey by remember { mutableStateOf<AdminApi.HsPreAuthKey?>(null) }
   var pendingRenameUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
   var pendingDeleteUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
-  var addRuleRequest by remember { mutableStateOf(false) }
+  var editPolicyRequest by remember { mutableStateOf(false) }
+  var policyEditing by remember { mutableStateOf(false) }
   var showCreateKey by remember { mutableStateOf(false) }
   var showCreateUser by remember { mutableStateOf(false) }
 
@@ -303,22 +306,24 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
       floatingActionButton = {
         when {
           !configured -> Unit
+          // Extended, so the primary action says what it does instead of hiding behind an icon.
           selectedTab == 1 ->
-              FloatingActionButton(onClick = { showCreateUser = true }) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.admin_new_user))
-              }
+              ExtendedFloatingActionButton(
+                  onClick = { showCreateUser = true },
+                  icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                  text = { Text(stringResource(R.string.admin_new_user)) })
           selectedTab == 2 ->
-              FloatingActionButton(onClick = { showCreateKey = true }) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.admin_new_preauth_key))
-              }
-          selectedTab == 4 ->
-              FloatingActionButton(onClick = { addRuleRequest = true }) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.policy_edit_add_rule))
-              }
+              ExtendedFloatingActionButton(
+                  onClick = { showCreateKey = true },
+                  icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                  text = { Text(stringResource(R.string.admin_new_preauth_key)) })
+          // Editing the policy is this tab's primary action; it is hidden once editing starts,
+          // because the save/discard bar above already owns that state.
+          selectedTab == 4 && !policyEditing ->
+              ExtendedFloatingActionButton(
+                  onClick = { editPolicyRequest = true },
+                  icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                  text = { Text(stringResource(R.string.policy_edit_policy)) })
           else -> Unit
         }
       }) { innerPadding ->
@@ -546,8 +551,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                       // What a rule can legitimately point at, from the tailnet's own data.
                       users = users.map { it.name }.filter { it.isNotBlank() },
                       tags = nodes.flatMap { it.validTags }.distinct().sorted(),
-                      addRuleRequest = addRuleRequest,
-                      onAddRuleHandled = { addRuleRequest = false },
+                      editPolicyRequest = editPolicyRequest,
+                      onEditPolicyHandled = { editPolicyRequest = false },
+                      onEditingState = { policyEditing = it },
                       onSave = { savePolicy(it) })
                 }
               }

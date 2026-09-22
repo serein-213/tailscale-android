@@ -70,7 +70,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /** Sections whose entries can be added from the structured view. */
-private val policyAddableSections = setOf("hosts", "groups", "tagOwners")
+private val policyAddableSections = setOf("acls", "hosts", "groups", "tagOwners")
 
 /**
  * The access policy, laid out instead of dumped: sections that expand, one block per rule, and a
@@ -84,8 +84,9 @@ fun AdminPolicyTab(
     saving: Boolean,
     users: List<String>,
     tags: List<String>,
-    addRuleRequest: Boolean,
-    onAddRuleHandled: () -> Unit,
+    editPolicyRequest: Boolean,
+    onEditPolicyHandled: () -> Unit,
+    onEditingState: (Boolean) -> Unit,
     onSave: (String) -> Unit,
 ) {
   val clipboard = LocalClipboardManager.current
@@ -180,15 +181,15 @@ fun AdminPolicyTab(
   }
   // Read off the main thread: the encrypted preferences open the keystore on first access.
   LaunchedEffect(policyText) { backup = withContext(Dispatchers.IO) { PolicyBackup.last() } }
-  // The screen owns the FAB; the append happens here, where the draft lives.
-  LaunchedEffect(addRuleRequest) {
-    if (addRuleRequest) {
-      structured.onEdit(
-          StructuredEdit.AddRule(
-              section = "acls", action = "accept", src = emptyList(), dst = emptyList()))
-      onAddRuleHandled()
+  // The screen owns the FAB; entering edit mode is decided here, next to the draft.
+  LaunchedEffect(editPolicyRequest) {
+    if (editPolicyRequest) {
+      editing = true
+      onEditPolicyHandled()
     }
   }
+  // The FAB is only meaningful while the policy is not being edited.
+  LaunchedEffect(editing, draft != policyText) { onEditingState(editing || draft != policyText) }
 
   LaunchedEffect(policyText, saving, pendingSave) {
     val pending = pendingSave
@@ -250,9 +251,6 @@ fun AdminPolicyTab(
                       painter = painterResource(R.drawable.clipboard),
                       contentDescription = stringResource(R.string.copy_to_clipboard))
                 }
-            TextButton(enabled = policyText.isNotEmpty() && !saving, onClick = { editing = true }) {
-              Text(stringResource(R.string.policy_edit))
-            }
           }
         }
 
@@ -302,6 +300,13 @@ fun AdminPolicyTab(
               Text(stringResource(R.string.policy_edit_save))
             }
           }
+    }
+    if (editing) {
+      Text(
+          stringResource(R.string.policy_edit_raw_hint),
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(start = 16.dp, top = 2.dp))
     }
     if (searching && doc != null) {
       OutlinedTextField(
@@ -367,7 +372,19 @@ fun AdminPolicyTab(
               doc,
               editor = structured,
               onEntry = { entryTarget = it },
-              onAddEntry = { addingTo = it })
+              onAddEntry = { section ->
+                if (section == "acls") {
+                  // A new rule is neutral by construction: an empty match set.
+                  structured.onEdit(
+                      StructuredEdit.AddRule(
+                          section = "acls",
+                          action = "accept",
+                          src = emptyList(),
+                          dst = emptyList()))
+                } else {
+                  addingTo = section
+                }
+              })
       query.isNotBlank() && matches == 0 ->
           Text(
               stringResource(R.string.policy_search_none),
@@ -380,7 +397,19 @@ fun AdminPolicyTab(
               forceExpanded = query.isNotBlank(),
               editor = structured,
               onEntry = { entryTarget = it },
-              onAddEntry = { addingTo = it })
+              onAddEntry = { section ->
+                if (section == "acls") {
+                  // A new rule is neutral by construction: an empty match set.
+                  structured.onEdit(
+                      StructuredEdit.AddRule(
+                          section = "acls",
+                          action = "accept",
+                          src = emptyList(),
+                          dst = emptyList()))
+                } else {
+                  addingTo = section
+                }
+              })
     }
   }
 
