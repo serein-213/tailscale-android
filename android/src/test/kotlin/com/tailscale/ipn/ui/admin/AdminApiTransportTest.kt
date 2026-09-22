@@ -13,6 +13,9 @@ import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.util.Collections
 import kotlin.concurrent.thread
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -170,6 +173,36 @@ class AdminApiTransportTest {
     val request = server.requests.single()
     assertEquals("POST", request.method)
     assertEquals("""{"user":"1"}""", request.body)
+    assertEquals("application/json", request.contentType)
+  }
+
+  @Test
+  fun extractsTheServerMessageFromErrors() {
+    // Body captured from headscale rejecting a broken policy.
+    val body =
+        """{"code":2,"message":"setting policy: parsing policy: parsing HuJSON: hujson: line 1, column 3: invalid literal: this","details":[]}"""
+    assertEquals(
+        "setting policy: parsing policy: parsing HuJSON: hujson: line 1, column 3: invalid literal: this",
+        AdminApi.errorSummary(body))
+    assertEquals("Bad Gateway", AdminApi.errorSummary("Bad Gateway"))
+    assertEquals("", AdminApi.errorSummary("  "))
+  }
+
+  @Test
+  fun putsThePolicyBodyOnTheWire() {
+    // The body carries huJSON (quotes, newlines, comments): assert it round-trips to the exact text
+    // the server should receive, rather than pinning kotlinx's escaping details.
+    val huJson = "{\n  // family\n  \"acls\": [\n    { \"action\": \"accept\" }\n  ]\n}"
+    val body = AdminApi.policyRequestBody(huJson)
+    val policyField = Json.parseToJsonElement(body).jsonObject.getValue("policy").jsonPrimitive.content
+    assertEquals(huJson, policyField)
+
+    server.responseBody = """{"policy":"{}","updatedAt":"2026-09-22T06:43:19Z"}"""
+    AdminApi.requestWith("PUT", "/api/v1/policy", body, base(), "k")
+    val request = server.requests.single()
+    assertEquals("PUT", request.method)
+    assertEquals("/api/v1/policy", request.path)
+    assertEquals(body, request.body)
     assertEquals("application/json", request.contentType)
   }
 

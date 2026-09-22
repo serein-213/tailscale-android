@@ -521,4 +521,15 @@
     <string name="admin_key_actions">Key actions</string>
     <string name="admin_confirm_delete">Delete this device?</string>
 
+  <string name="policy_edit">编辑</string>
+  <string name="policy_edit_save">保存</string>
+  <string name="policy_edit_cancel">取消</string>
+  <string name="policy_edit_restore">恢复上一版</string>
+  <string name="policy_edit_hint">huJSON（支持注释）</string>
+  <string name="policy_edit_invalid">JSON 语法有误，保存已禁用；请先修正</string>
+  <string name="policy_edit_warning">编辑中 · 保存后立即对全部设备生效</string>
+  <string name="policy_save_title">保存策略？</string>
+  <string name="policy_save_warning">保存后立即对全部设备生效，无法撤销。\n\n语法错误会被服务端拒绝并提示位置；但语义写错（例如删掉自己的访问规则）会让设备失去连接。已自动保留上一份可用策略，可一键恢复。</string>
+  <string name="policy_save_confirm">确认保存</string>
+  <string name="policy_saved">策略已保存并生效</string>
 </resources>

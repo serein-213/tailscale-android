@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tailscale.ipn.App
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminApi
 import com.tailscale.ipn.ui.admin.KeyStatus
@@ -81,6 +82,7 @@ import com.tailscale.ipn.ui.admin.NodeList
 import com.tailscale.ipn.ui.admin.filterPreAuthKeys
 import com.tailscale.ipn.ui.admin.isExpired
 import com.tailscale.ipn.ui.admin.status
+import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
@@ -163,9 +165,38 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
     scope.launch {
       policyLoading = true
       runCatching { withContext(Dispatchers.IO) { AdminApi.policy() } }
-          .onSuccess { policy = it }
+          .onSuccess {
+            policy = it
+            // The last policy known to be on the server is the way back from a bad edit.
+            PolicyBackup.remember(it.policy)
+          }
           .onFailure { TSLog.w(TAG, "policy load failed: ${it.message}") }
       policyLoading = false
+    }
+  }
+
+  /**
+   * Writes the policy back. Headscale validates it server-side; on success the response is the new
+   * policy, which is what the editor waits for before leaving edit mode.
+   */
+  fun savePolicy(text: String) {
+    if (!AdminApi.isConfigured()) return
+    scope.launch {
+      busy = true
+      status = null
+      try {
+        val applied = withContext(Dispatchers.IO) { AdminApi.updatePolicy(text) }
+        policy = applied
+        // The applied policy is the new way back.
+        PolicyBackup.remember(applied.policy)
+        snackbarHostState.showSnackbar(App.get().getString(R.string.policy_saved))
+      } catch (e: Exception) {
+        val message = e.message ?: e.javaClass.simpleName
+        TSLog.e(TAG, "policy save failed", e)
+        status = message
+        snackbarHostState.showSnackbar(message, withDismissAction = true)
+      }
+      busy = false
     }
   }
 
@@ -406,7 +437,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                   AdminPolicyTab(
                       policyText = policy?.policy.orEmpty(),
                       updatedAt = policy?.updatedAt,
-                      loading = policyLoading)
+                      loading = policyLoading,
+                      saving = busy,
+                      onSave = { savePolicy(it) })
                 }
               }
               }

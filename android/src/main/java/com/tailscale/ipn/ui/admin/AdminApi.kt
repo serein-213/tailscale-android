@@ -12,6 +12,8 @@ import java.net.URLEncoder
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Minimal client for the Headscale HTTP API (v1) used by the in-app tailnet admin screens.
@@ -77,6 +79,7 @@ object AdminApi {
 
   @Serializable private data class NodeResponse(val node: HsNode? = null)
   @Serializable private data class SetTagsRequest(val tags: List<String>)
+  @Serializable private data class UpdatePolicyRequest(val policy: String)
   @Serializable private data class ApproveRoutesRequest(val routes: List<String>)
 
   @Serializable
@@ -130,6 +133,13 @@ object AdminApi {
       parsePreAuthKeys(request("GET", "/api/v1/preauthkey"))
 
   fun policy(): HsPolicy = parsePolicy(request("GET", "/api/v1/policy"))
+
+  /**
+   * Replaces the tailnet policy. Headscale validates it server-side and answers with a parse error
+   * (line and column) when the huJSON is broken, which is the last line of defence.
+   */
+  fun updatePolicy(policyText: String): HsPolicy =
+      parsePolicy(request("PUT", "/api/v1/policy", policyRequestBody(policyText)))
 
   fun expireNode(id: String) {
     request("POST", "/api/v1/node/$id/expire")
@@ -200,6 +210,23 @@ object AdminApi {
 
   internal fun parsePolicy(body: String): HsPolicy = json.decodeFromString<HsPolicy>(body)
 
+  /**
+   * Headscale reports failures as {"code":N,"message":"..."} and the message is the useful part: a
+   * rejected policy comes back as "parsing HuJSON: hujson: line 1, column 3: ...". Anything else
+   * falls back to the raw body.
+   */
+  internal fun errorSummary(body: String): String {
+    val text = body.trim()
+    if (text.isEmpty()) return ""
+    val message =
+        runCatching { json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.content }
+            .getOrNull()
+    return (message?.takeIf { it.isNotBlank() } ?: text).take(300)
+  }
+
+  internal fun policyRequestBody(policyText: String): String =
+      json.encodeToString(UpdatePolicyRequest.serializer(), UpdatePolicyRequest(policyText))
+
   internal fun parsePreAuthKeys(body: String): List<HsPreAuthKey> =
       json.decodeFromString<PreAuthKeysResponse>(body).preAuthKeys
 
@@ -268,8 +295,8 @@ object AdminApi {
 
       val code = conn.responseCode
       if (code !in 200..299) {
-        val message = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        throw IOException("$method $path failed: HTTP $code ${message.take(300)}")
+        val body = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        throw IOException("$method $path failed: HTTP $code ${errorSummary(body)}")
       }
 
       val text = conn.inputStream?.bufferedReader()?.use { it.readText() }.orEmpty()

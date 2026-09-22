@@ -21,16 +21,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,7 +47,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.tailscale.ipn.R
+import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
@@ -58,10 +65,38 @@ import kotlinx.serialization.json.contentOrNull
  * raw view for when the text is not parseable or someone wants the original.
  */
 @Composable
-fun AdminPolicyTab(policyText: String, updatedAt: String?, loading: Boolean) {
+fun AdminPolicyTab(
+    policyText: String,
+    updatedAt: String?,
+    loading: Boolean,
+    saving: Boolean,
+    onSave: (String) -> Unit,
+) {
   val clipboard = LocalClipboardManager.current
   var showRaw by remember { mutableStateOf(false) }
   val doc = remember(policyText) { PolicyDoc.parse(policyText) }
+  var editing by remember { mutableStateOf(false) }
+  var draft by remember { mutableStateOf(policyText) }
+  // Set while a save is in flight so success (the saved text comes back from the server) can leave
+  // edit mode, and failure keeps the draft.
+  var pendingSave by remember { mutableStateOf<String?>(null) }
+  var confirmSave by remember { mutableStateOf(false) }
+  var backup by remember { mutableStateOf<String?>(null) }
+  val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
+
+  LaunchedEffect(policyText, editing) {
+    if (!editing) draft = policyText
+  }
+  // Read off the main thread: the encrypted preferences open the keystore on first access.
+  LaunchedEffect(policyText) { backup = withContext(Dispatchers.IO) { PolicyBackup.last() } }
+  LaunchedEffect(policyText, saving, pendingSave) {
+    val pending = pendingSave
+    if (!saving && pending != null && policyText == pending) {
+      editing = false
+      pendingSave = null
+      backup = PolicyBackup.last()
+    }
+  }
 
   Column(Modifier.fillMaxSize()) {
     Row(
@@ -78,13 +113,32 @@ fun AdminPolicyTab(policyText: String, updatedAt: String?, loading: Boolean) {
                 onClick = { showRaw = true })
           }
           Box(Modifier.weight(1f))
-          IconButton(
-              enabled = policyText.isNotEmpty(),
-              onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
-                Icon(
-                    painter = painterResource(R.drawable.clipboard),
-                    contentDescription = stringResource(R.string.copy_to_clipboard))
-              }
+          if (editing) {
+            TextButton(
+                enabled = backup != null && !saving,
+                onClick = { backup?.let { draft = it } }) {
+                  Text(stringResource(R.string.policy_edit_restore))
+                }
+            TextButton(enabled = !saving, onClick = { editing = false; draft = policyText }) {
+              Text(stringResource(R.string.policy_edit_cancel))
+            }
+            TextButton(
+                enabled = draftValid && draft != policyText && !saving,
+                onClick = { confirmSave = true }) {
+                  Text(stringResource(R.string.policy_edit_save))
+                }
+          } else {
+            TextButton(enabled = policyText.isNotEmpty() && !saving, onClick = { editing = true }) {
+              Text(stringResource(R.string.policy_edit))
+            }
+            IconButton(
+                enabled = policyText.isNotEmpty(),
+                onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
+                  Icon(
+                      painter = painterResource(R.drawable.clipboard),
+                      contentDescription = stringResource(R.string.copy_to_clipboard))
+                }
+          }
         }
     updatedAt?.let {
       Text(
@@ -95,6 +149,7 @@ fun AdminPolicyTab(policyText: String, updatedAt: String?, loading: Boolean) {
     }
 
     when {
+      editing -> PolicyEditor(draft = draft, invalid = !draftValid, saving = saving, onChange = { draft = it })
       policyText.isEmpty() && loading -> {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           CircularProgressIndicator(Modifier.size(32.dp))
@@ -118,6 +173,62 @@ fun AdminPolicyTab(policyText: String, updatedAt: String?, loading: Boolean) {
       showRaw -> RawPolicyText(policyText)
       else -> StructuredPolicy(doc)
     }
+  }
+
+  if (confirmSave) {
+    AlertDialog(
+        onDismissRequest = { confirmSave = false },
+        title = { Text(stringResource(R.string.policy_save_title)) },
+        text = { Text(stringResource(R.string.policy_save_warning)) },
+        confirmButton = {
+          TextButton(
+              onClick = {
+                confirmSave = false
+                pendingSave = draft
+                onSave(draft)
+              }) {
+                Text(stringResource(R.string.policy_save_confirm))
+              }
+        },
+        dismissButton = {
+          TextButton(onClick = { confirmSave = false }) {
+            Text(stringResource(R.string.policy_edit_cancel))
+          }
+        })
+  }
+}
+
+/**
+ * Raw huJSON editing. The same text the server returns, so nothing is lost in translation; validity
+ * is checked locally first and the server rejects what slips through.
+ */
+@Composable
+private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onChange: (String) -> Unit) {
+  Column(Modifier.fillMaxSize()) {
+    Text(
+        stringResource(R.string.policy_edit_warning),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onErrorContainer,
+        modifier =
+            Modifier.fillMaxWidth()
+                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
+                .padding(horizontal = 16.dp, vertical = 8.dp))
+    OutlinedTextField(
+        value = draft,
+        onValueChange = onChange,
+        modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 8.dp),
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        placeholder = { Text(stringResource(R.string.policy_edit_hint)) },
+        isError = invalid,
+        enabled = !saving)
+    if (invalid) {
+      Text(
+          stringResource(R.string.policy_edit_invalid),
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+    }
+    if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
   }
 }
 
