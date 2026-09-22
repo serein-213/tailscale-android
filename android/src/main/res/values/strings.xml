@@ -490,6 +490,16 @@
     <string name="admin_copy">Copy</string>
     <string name="admin_route_exit">Exit</string>
     <string name="admin_route_subnet">Subnet</string>
+    <string name="admin_no_nodes">No devices yet</string>
+    <string name="admin_no_users">No users yet</string>
+    <string name="admin_no_matches">No devices match that search</string>
+    <string name="admin_search_devices">Search name, IP, user or tag</string>
+    <string name="admin_clear">Clear</string>
+    <string name="admin_device_online">Online</string>
+    <string name="admin_device_offline">Offline</string>
+    <string name="admin_last_seen">Last seen</string>
+    <string name="admin_device_details">Details</string>
+    <string name="admin_ip_addresses">IP addresses</string>
     <string name="admin_connection">Connection</string>
     <string name="admin_base_url">Headscale URL</string>
     <string name="admin_api_key">API key</string>

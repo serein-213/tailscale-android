@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,13 +26,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -39,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -56,6 +65,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -66,13 +77,13 @@ import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminApi
 import com.tailscale.ipn.ui.admin.KeyStatus
+import com.tailscale.ipn.ui.admin.NodeList
 import com.tailscale.ipn.ui.admin.filterPreAuthKeys
 import com.tailscale.ipn.ui.admin.isExpired
 import com.tailscale.ipn.ui.admin.status
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
-import com.tailscale.ipn.ui.util.LoadingIndicator
 import com.tailscale.ipn.ui.util.ServerConfig
 import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +98,7 @@ import kotlinx.serialization.json.JsonObject
  * and tailnet state at a glance.
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun AdminConsoleView(backToSettings: BackNavigation) {
   val TAG = "AdminConsoleView"
   val scope = rememberCoroutineScope()
@@ -105,6 +117,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var expandedUser by remember { mutableStateOf<String?>(null) }
   var keyStatus by remember { mutableStateOf(KeyStatus.ALL) }
   var keyUserId by remember { mutableStateOf<String?>(null) }
+  var nodeQuery by remember { mutableStateOf("") }
+  var expandedNode by remember { mutableStateOf<String?>(null) }
   var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
   var policyLoading by remember { mutableStateOf(false) }
@@ -127,7 +141,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
       try {
         val n = withContext(Dispatchers.IO) { AdminApi.nodes() }
         nodes.clear()
-        nodes.addAll(n.sortedBy { it.displayName.lowercase() })
+        nodes.addAll(NodeList.sort(n))
         val k = withContext(Dispatchers.IO) { AdminApi.preAuthKeys() }
         keys.clear()
         keys.addAll(k)
@@ -197,8 +211,23 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
               }
             })
       },
-      snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
-        LoadingIndicator.Wrap {
+      snackbarHost = { SnackbarHost(snackbarHostState) },
+      floatingActionButton = {
+        when {
+          !configured -> Unit
+          selectedTab == 1 ->
+              FloatingActionButton(onClick = { showCreateUser = true }) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.admin_new_user))
+              }
+          selectedTab == 2 ->
+              FloatingActionButton(onClick = { showCreateKey = true }) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.admin_new_preauth_key))
+              }
+          else -> Unit
+        }
+      }) { innerPadding ->
           Column(Modifier.fillMaxSize().padding(innerPadding)) {
             status?.let {
               Text(
@@ -248,21 +277,58 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                     text = { Text(stringResource(R.string.admin_policy_tab)) })
               }
 
+              if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+              PullToRefreshBox(isRefreshing = busy, onRefresh = { refresh() }) {
               when (selectedTab) {
-                0 ->
-                    LazyColumn(Modifier.fillMaxSize()) {
-                      items(nodes, key = { it.id }) { node ->
-                        NodeRow(
-                            node = node,
-                            busy = busy,
-                            onRename = { pendingRename = node },
-                            onTags = { pendingTags = node },
-                            onExpire = { pendingExpire = node },
-                            onDelete = { pendingDelete = node })
-                      }
-                    }
+                0 -> {
+                  val visibleNodes = NodeList.search(nodes, nodeQuery)
+                  Column(Modifier.fillMaxSize()) {
+                    OutlinedTextField(
+                        value = nodeQuery,
+                        onValueChange = { nodeQuery = it },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                          if (nodeQuery.isNotEmpty()) {
+                            IconButton(onClick = { nodeQuery = "" }) {
+                              Icon(
+                                  Icons.Default.Close,
+                                  contentDescription = stringResource(R.string.admin_clear))
+                            }
+                          }
+                        },
+                        placeholder = { Text(stringResource(R.string.admin_search_devices)) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 96.dp)) {
+                          if (visibleNodes.isEmpty()) {
+                            item("noNodes") {
+                              EmptyHint(
+                                  if (nodeQuery.isBlank()) R.string.admin_no_nodes
+                                  else R.string.admin_no_matches)
+                            }
+                          }
+                          items(visibleNodes, key = { it.id }) { node ->
+                            NodeRow(
+                                node = node,
+                                busy = busy,
+                                expanded = expandedNode == node.id,
+                                onToggleExpanded = {
+                                  expandedNode = if (expandedNode == node.id) null else node.id
+                                },
+                                onRename = { pendingRename = node },
+                                onTags = { pendingTags = node },
+                                onExpire = { pendingExpire = node },
+                                onDelete = { pendingDelete = node })
+                          }
+                        }
+                  }
+                }
                 1 ->
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 96.dp)) {
                       items(users, key = { it.id }) { user ->
                         UserRow(
                             user = user,
@@ -279,14 +345,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                             onRename = { pendingRenameUser = user },
                             onDelete = { pendingDeleteUser = user })
                       }
-                      item("newUser") {
-                        TextButton(
-                            onClick = { showCreateUser = true },
-                            modifier = Modifier.padding(horizontal = 8.dp)) {
-                              Text(
-                                  stringResource(R.string.admin_new_user),
-                                  color = MaterialTheme.colorScheme.link)
-                            }
+                      if (users.isEmpty()) {
+                        item("noUsers") { EmptyHint(R.string.admin_no_users) }
                       }
                     }
                 2 -> {
@@ -299,7 +359,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                         onStatus = { keyStatus = it },
                         userId = keyUserId,
                         onUser = { keyUserId = it })
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 96.dp)) {
                       items(visibleKeys, key = { it.id }) { key ->
                         PreAuthKeyRow(key, onExpire = { pendingExpireKey = key })
                       }
@@ -312,20 +374,13 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                               modifier = Modifier.padding(16.dp))
                         }
                       }
-                      item("newKey") {
-                        TextButton(
-                            onClick = { showCreateKey = true },
-                            modifier = Modifier.padding(horizontal = 8.dp)) {
-                              Text(
-                                  stringResource(R.string.admin_new_preauth_key),
-                                  color = MaterialTheme.colorScheme.link)
-                            }
-                      }
                     }
                   }
                 }
                 3 ->
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 96.dp)) {
                       if (routableNodes.isEmpty()) {
                         item("noRoutes") {
                           Text(
@@ -354,9 +409,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                       loading = policyLoading)
                 }
               }
+              }
             }
           }
-        }
       }
 
   if (showConnection) {
@@ -516,12 +571,16 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 private fun NodeRow(
     node: AdminApi.HsNode,
     busy: Boolean,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onExpire: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
     onTags: () -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
+  val onlineLabel = stringResource(R.string.admin_device_online)
+  val offlineLabel = stringResource(R.string.admin_device_offline)
   ListItem(
       leadingContent = {
         Box(
@@ -529,7 +588,11 @@ private fun NodeRow(
                 .background(
                     if (node.online) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.outlineVariant,
-                    CircleShape))
+                    CircleShape)
+                .semantics {
+                  contentDescription =
+                      if (node.online) onlineLabel else offlineLabel
+                })
       },
       headlineContent = {
         Text(node.displayName, style = MaterialTheme.typography.bodyMedium)
@@ -547,7 +610,13 @@ private fun NodeRow(
             maxLines = 2)
       },
       trailingContent = {
-        Box {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          IconButton(onClick = onToggleExpanded) {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.admin_device_details))
+          }
+          Box {
           IconButton(onClick = { menuOpen = true }, enabled = !busy) {
             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.admin_device_actions))
           }
@@ -569,8 +638,27 @@ private fun NodeRow(
               onDelete()
             }
           }
+          }
         }
       })
+
+  if (!expanded) return
+
+  Lists.MutedHeader(text = stringResource(R.string.admin_ip_addresses))
+  node.ipAddresses.forEach { DetailLine(text = it, trailing = null) }
+  if (node.tags.isNotEmpty()) {
+    Lists.MutedHeader(text = stringResource(R.string.admin_node_tags))
+    node.tags.forEach { DetailLine(text = it, trailing = null) }
+  }
+  node.lastSeen?.takeIf { !isZeroTime(it) }?.let {
+    DetailLine(
+        text = stringResource(R.string.admin_last_seen),
+        trailing = it.replace("T", " ").take(16))
+  }
+  node.expiry?.take(10)?.takeIf { !isZeroTime(it) }?.let {
+    DetailLine(text = stringResource(R.string.admin_expires_at), trailing = it)
+  }
+  Spacer(Modifier.size(6.dp))
 }
 
 /** Status and owner filters for the key list, with counts so the numbers add up at a glance. */
@@ -591,10 +679,13 @@ private fun KeyFiltersRow(
             .padding(horizontal = 12.dp)) {
           KeyStatus.entries.forEach { candidate ->
             FilterChip(
-                label =
-                    "${stringResource(keyStatusLabel(candidate))} (${filterPreAuthKeys(keys, candidate, userId, now).size})",
                 selected = status == candidate,
-                onClick = { onStatus(candidate) })
+                onClick = { onStatus(candidate) },
+                label = {
+                  Text(
+                      "${stringResource(keyStatusLabel(candidate))} (${filterPreAuthKeys(keys, candidate, userId, now).size})")
+                },
+                modifier = Modifier.padding(end = 6.dp))
           }
         }
     if (users.size > 1) {
@@ -603,38 +694,26 @@ private fun KeyFiltersRow(
               .horizontalScroll(rememberScrollState())
               .padding(horizontal = 12.dp, vertical = 2.dp)) {
             FilterChip(
-                label = "${stringResource(R.string.admin_all_users)} (${filterPreAuthKeys(keys, status, null, now).size})",
                 selected = userId == null,
-                onClick = { onUser(null) })
+                onClick = { onUser(null) },
+                label = {
+                  Text(
+                      "${stringResource(R.string.admin_all_users)} (${filterPreAuthKeys(keys, status, null, now).size})")
+                },
+                modifier = Modifier.padding(end = 6.dp))
             users.forEach { user ->
               FilterChip(
-                  label = "${user.name} (${filterPreAuthKeys(keys, status, user.id, now).size})",
                   selected = userId == user.id,
-                  onClick = { onUser(user.id) })
+                  onClick = { onUser(user.id) },
+                  label = {
+                    Text("${user.name} (${filterPreAuthKeys(keys, status, user.id, now).size})")
+                  },
+                  modifier = Modifier.padding(end = 6.dp))
             }
           }
     }
     Spacer(Modifier.size(4.dp))
   }
-}
-
-@Composable
-private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-  Box(
-      Modifier.padding(end = 6.dp)
-          .background(
-              if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-              else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              RoundedCornerShape(50))
-          .clickable(onClick = onClick)
-          .padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color =
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant)
-      }
 }
 
 private fun keyStatusLabel(status: KeyStatus): Int =
@@ -644,6 +723,16 @@ private fun keyStatusLabel(status: KeyStatus): Int =
       KeyStatus.USED -> R.string.admin_key_status_used
       KeyStatus.EXPIRED -> R.string.admin_key_status_expired
     }
+
+/** Shown when a tab has nothing to list, or nothing matches the filter. */
+@Composable
+private fun EmptyHint(@StringRes textRes: Int) {
+  Text(
+      stringResource(textRes),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(16.dp))
+}
 
 @Composable
 private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
