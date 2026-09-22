@@ -209,7 +209,18 @@ fun AdminPolicyTab(
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-          Box(Modifier.weight(1f))
+          // Timestamp on the left, actions on the right: one line instead of two.
+          if (updatedAt != null) {
+            Text(
+                stringResource(R.string.admin_policy_updated, updatedAt.replace("T", " ").take(16)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f))
+          } else {
+            Box(Modifier.weight(1f))
+          }
           if (editing) {
             TextButton(
                 enabled = backup != null && !saving,
@@ -347,14 +358,6 @@ fun AdminPolicyTab(
             modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
       }
     }
-    updatedAt?.let {
-      Text(
-          stringResource(R.string.admin_policy_updated, it.replace("T", " ").take(19)),
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
-    }
-
     when {
       editing -> PolicyEditor(draft = draft, invalid = !draftValid, saving = saving, onChange = { draft = it })
       policyText.isEmpty() && loading -> {
