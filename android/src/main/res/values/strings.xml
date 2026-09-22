@@ -450,8 +450,6 @@
     <string name="admin_refresh">Refresh</string>
     <string name="admin_policy_updated">Updated %1$s</string>
     <string name="admin_keys_short">Keys</string>
-    <string name="policy_view_structured">Structured</string>
-    <string name="policy_view_raw">Raw</string>
     <string name="policy_parse_failed">Not valid JSON - showing the raw text</string>
     <string name="policy_empty">The policy is empty</string>
     <string name="policy_items">%1$d items</string>
@@ -566,4 +564,8 @@
   <string name="policy_edit_discard_title">放弃这些修改？</string>
   <string name="policy_edit_discard_message">结构化编辑产生的改动会被丢弃，策略回到上一次读取或保存的样子。</string>
   <string name="policy_edit_policy">编辑策略</string>
+  <string name="policy_view_raw_action">查看原文</string>
+  <string name="policy_view_structured_action">查看结构化</string>
+  <string name="policy_copy_all">复制全部</string>
+  <string name="more_actions">更多操作</string>
 </resources>

@@ -23,14 +23,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -107,6 +107,7 @@ fun AdminPolicyTab(
   var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
   var addingTo by remember { mutableStateOf<String?>(null) }
   var confirmDiscard by remember { mutableStateOf(false) }
+  var menuOpen by remember { mutableStateOf(false) }
   var query by remember { mutableStateOf("") }
   val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
   val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
@@ -206,25 +207,8 @@ fun AdminPolicyTab(
 
   Column(Modifier.fillMaxSize()) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-          // The view toggles only mean something outside the raw editor.
-          if (!editing && doc != null) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f, fill = false)) {
-              SegmentedButton(
-                  selected = !showRaw,
-                  onClick = { showRaw = false },
-                  shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)) {
-                    Text(stringResource(R.string.policy_view_structured))
-                  }
-              SegmentedButton(
-                  selected = showRaw,
-                  onClick = { showRaw = true },
-                  shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)) {
-                    Text(stringResource(R.string.policy_view_raw))
-                  }
-            }
-          }
           Box(Modifier.weight(1f))
           if (editing) {
             TextButton(
@@ -248,13 +232,36 @@ fun AdminPolicyTab(
                     contentDescription = stringResource(R.string.policy_search_hint))
               }
             }
-            IconButton(
-                enabled = policyText.isNotEmpty() && !saving,
-                onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
-                  Icon(
-                      painter = painterResource(R.drawable.clipboard),
-                      contentDescription = stringResource(R.string.copy_to_clipboard))
+            // Secondary actions live behind the overflow, the way the rest of the app does it.
+            Box {
+              IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.more_actions))
+              }
+              DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                if (doc != null) {
+                  DropdownMenuItem(
+                      text = {
+                        Text(
+                            stringResource(
+                                if (showRaw) R.string.policy_view_structured_action
+                                else R.string.policy_view_raw_action))
+                      },
+                      onClick = {
+                        menuOpen = false
+                        showRaw = !showRaw
+                      })
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.policy_copy_all)) },
+                    enabled = policyText.isNotEmpty() && !saving,
+                    onClick = {
+                      menuOpen = false
+                      clipboard.setText(AnnotatedString(policyText))
+                    })
+              }
+            }
           }
         }
 
