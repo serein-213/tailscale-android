@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -206,7 +207,7 @@ fun AdminPolicyTab(
         verticalAlignment = Alignment.CenterVertically) {
           // The view toggles only mean something outside the raw editor.
           if (!editing && doc != null) {
-            SingleChoiceSegmentedButtonRow {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f, fill = false)) {
               SegmentedButton(
                   selected = !showRaw,
                   onClick = { showRaw = false },
@@ -485,7 +486,10 @@ private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onCha
 
 @Composable
 private fun RawPolicyText(text: String) {
-  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+  Column(
+      Modifier.fillMaxSize()
+          .verticalScroll(rememberScrollState())
+          .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp)) {
     Text(text, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
   }
 }
@@ -502,7 +506,10 @@ private fun StructuredPolicy(
   // Rules are what people come here for; the rest stays collapsed.
   val expanded = remember(doc) { mutableStateMapOf<String, Boolean>().apply { put("acls", true) } }
 
-  LazyColumn(Modifier.fillMaxSize()) {
+  // Room for the screen's FAB, so the last entry is never covered by it.
+  LazyColumn(
+      Modifier.fillMaxSize(),
+      contentPadding = PaddingValues(bottom = 96.dp)) {
     sections.forEach { key ->
       val value = doc[key]
       val open = forceExpanded || expanded[key] == true
@@ -614,19 +621,12 @@ private fun EntryBlock(
             dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
   }
 
-  Column(
+  Row(
       Modifier.fillMaxWidth()
           .clickable(enabled = editor != null) { openEditor() }
-          .padding(horizontal = 16.dp, vertical = 6.dp)) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      Box(Modifier.weight(1f))
-      IconButton(onClick = { openEditor() }) {
-        Icon(
-            Icons.Default.Edit,
-            contentDescription = stringResource(R.string.policy_edit_entry),
-            tint = MaterialTheme.colorScheme.primary)
-      }
-    }
+          .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
     PolicyDoc.ruleFields(rule).forEach { (name, field) ->
       val strings = PolicyDoc.stringsOf(field)
       if (name == "action" && strings.size == 1) {
@@ -639,7 +639,15 @@ private fun EntryBlock(
         FieldLine(label = name, value = compactJson(field))
       }
     }
-  }
+        }
+        if (editor != null) {
+          Icon(
+              Icons.Default.Edit,
+              contentDescription = stringResource(R.string.policy_edit_entry),
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.padding(start = 4.dp).size(20.dp))
+        }
+      }
 }
 
 @Composable
