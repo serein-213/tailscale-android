@@ -602,27 +602,30 @@ private fun EntryBlock(
     NamedValueRow(name = section, value = value)
     return
   }
-  Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+  /** Opens the editor for this rule (or does nothing when the view is read-only). */
+  fun openEditor() {
+    if (editor == null) return
+    onEntry(
+        EntryTarget(
+            title = ruleTitle(rule),
+            path = path,
+            action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
+            src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
+            dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
+  }
+
+  Column(
+      Modifier.fillMaxWidth()
+          .clickable(enabled = editor != null) { openEditor() }
+          .padding(horizontal = 16.dp, vertical = 6.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Box(Modifier.weight(1f))
-      IconButton(
-          enabled = editor != null,
-          onClick = {
-            editor?.let {
-              onEntry(
-                  EntryTarget(
-                      title = ruleTitle(rule),
-                      path = path,
-                      action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
-                      src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
-                      dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
-            }
-          }) {
-            Icon(
-                Icons.Default.Edit,
-                contentDescription = stringResource(R.string.policy_edit_entry),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-          }
+      IconButton(onClick = { openEditor() }) {
+        Icon(
+            Icons.Default.Edit,
+            contentDescription = stringResource(R.string.policy_edit_entry),
+            tint = MaterialTheme.colorScheme.primary)
+      }
     }
     PolicyDoc.ruleFields(rule).forEach { (name, field) ->
       val strings = PolicyDoc.stringsOf(field)
@@ -712,8 +715,8 @@ private fun NamedValueRow(
           Icon(
               Icons.Default.Edit,
               contentDescription = stringResource(R.string.policy_edit_entry),
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.padding(start = 8.dp).size(16.dp))
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.padding(start = 8.dp).size(24.dp))
         }
       }
     }
