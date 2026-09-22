@@ -71,7 +71,10 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /** Sections whose entries can be added from the structured view. */
-private val policyAddableSections = setOf("acls", "hosts", "groups", "tagOwners")
+private val policyAddableSections = setOf("acls", "ssh", "hosts", "groups", "tagOwners")
+
+/** Sections whose entries are rules: a new one starts as an empty match set, which is neutral. */
+private val policyRuleSections = setOf("acls", "ssh")
 
 /**
  * The access policy, laid out instead of dumped: sections that expand, one block per rule, and a
@@ -168,7 +171,7 @@ fun AdminPolicyTab(
                         PolicyEdit.appendTo(
                             draft,
                             listOf(PolicyEdit.Step.Key(edit.section)),
-                            """{ "action": "\${edit.action}", "src": [\${edit.src.joinToString(", ") { PolicyEdit.quote(it) }}], "dst": [\${edit.dst.joinToString(", ") { PolicyEdit.quote(it) }}] }""")
+                            ruleJson(edit.section, edit.action, edit.src, edit.dst))
                   }
               if (next != null) draft = next else onEditFailed()
             })
@@ -374,11 +377,11 @@ fun AdminPolicyTab(
               editor = structured,
               onEntry = { entryTarget = it },
               onAddEntry = { section ->
-                if (section == "acls") {
+                if (section in policyRuleSections) {
                   // A new rule is neutral by construction: an empty match set.
                   structured.onEdit(
                       StructuredEdit.AddRule(
-                          section = "acls",
+                          section = section,
                           action = "accept",
                           src = emptyList(),
                           dst = emptyList()))
@@ -399,11 +402,11 @@ fun AdminPolicyTab(
               editor = structured,
               onEntry = { entryTarget = it },
               onAddEntry = { section ->
-                if (section == "acls") {
+                if (section in policyRuleSections) {
                   // A new rule is neutral by construction: an empty match set.
                   structured.onEdit(
                       StructuredEdit.AddRule(
-                          section = "acls",
+                          section = section,
                           action = "accept",
                           src = emptyList(),
                           dst = emptyList()))
@@ -419,7 +422,13 @@ fun AdminPolicyTab(
         target = target,
         editor = structured,
         suggestions = suggestions,
-        dstChoices = dstSuggestions(hosts = hosts, existingDst = existingDst, base = suggestions),
+        dstChoices =
+            if (entryTarget?.section == "ssh") {
+              // ssh dst is an alias to log in to, not a host:port.
+              suggestions
+            } else {
+              dstSuggestions(hosts = hosts, existingDst = existingDst, base = suggestions)
+            },
         onDismiss = { entryTarget = null })
   }
 
@@ -618,7 +627,9 @@ private fun EntryBlock(
             path = path,
             action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
             src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
-            dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
+            dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
+            users = (rule["users"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
+            section = section))
   }
 
   Row(
@@ -776,6 +787,17 @@ private fun fieldLabel(key: String): Int? =
       "deny" -> R.string.policy_field_deny
       else -> null
     }
+
+/** Renders a rule the way its section needs it: ssh rules carry the users that may log in. */
+private fun ruleJson(section: String, action: String, src: List<String>, dst: List<String>): String {
+  val lists =
+      "\"action\": ${PolicyEdit.quote(action)}, " +
+          "\"src\": [${src.joinToString(", ") { PolicyEdit.quote(it) }}], " +
+          "\"dst\": [${dst.joinToString(", ") { PolicyEdit.quote(it) }}]"
+  // headscale rejects an ssh rule without users ("users must be specified"), so the template
+  // carries one; an empty match set still means the rule allows nothing until it is filled in.
+  return if (section == "ssh") "{ $lists, \"users\": [\"root\"] }" else "{ $lists }"
+}
 
 /** Short one-line label for a rule, reused as the editor sheet's title. */
 private fun ruleTitle(rule: JsonObject): String {

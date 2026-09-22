@@ -86,7 +86,21 @@ data class EntryTarget(
     val src: List<String>? = null,
     val dst: List<String>? = null,
     val value: String? = null,
+    /** ssh rules carry the local users that may log in; acls rules do not. */
+    val users: List<String>? = null,
+    /** Which section the entry lives in: dst means different things in acls and ssh. */
+    val section: String? = null,
 )
+
+/** Local users an ssh rule can grant: the usual ones plus whoever the console knows. */
+fun sshUserSuggestions(editor: StructuredEditor): List<String> =
+    buildList {
+          add("root")
+          add("autogroup:nonroot")
+          addAll(editor.users)
+        }
+        .distinct()
+        .sorted()
 
 /** Suggestion list for a value: what the policy already defines, plus the console's own data. */
 fun policySuggestions(
@@ -98,7 +112,9 @@ fun policySuggestions(
 ): List<String> =
     buildList {
           add("*")
-          addAll(listOf("autogroup:internet", "autogroup:member", "autogroup:self"))
+          addAll(
+              listOf(
+                  "autogroup:internet", "autogroup:member", "autogroup:self", "autogroup:tagged"))
           addAll(groups)
           addAll(tagOwners)
           addAll(hosts)
@@ -140,6 +156,7 @@ fun PolicyEntrySheet(
   var src by remember(target) { mutableStateOf(target.src.orEmpty()) }
   var dst by remember(target) { mutableStateOf(target.dst.orEmpty()) }
   var value by remember(target) { mutableStateOf(target.value.orEmpty()) }
+  var users by remember(target) { mutableStateOf(target.users.orEmpty()) }
   var confirmRemove by remember(target) { mutableStateOf(false) }
 
   ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -194,6 +211,23 @@ fun PolicyEntrySheet(
             onRemove = { item ->
               dst = dst - item
               editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), dst))
+            })
+      }
+
+      if (target.users != null) {
+        ValueEditor(
+            label = stringResource(R.string.policy_field_users),
+            values = users,
+            suggestions = sshUserSuggestions(editor),
+            onAdd = { picked ->
+              if (picked !in users) {
+                users = users + picked
+                editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users))
+              }
+            },
+            onRemove = { item ->
+              users = users - item
+              editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users))
             })
       }
 

@@ -24,8 +24,15 @@ object PolicyValidate {
   private val numericPort = Regex("^\\d+(-\\d+)?$")
 
   fun problems(policy: JsonObject): List<Problem> {
-    val acls = policy["acls"] as? JsonArray ?: return emptyList()
     val found = mutableListOf<Problem>()
+    // ssh rules need users: "users must be specified" when they are missing or empty.
+    (policy["ssh"] as? JsonArray)?.forEachIndexed { index, element ->
+      val rule = element as? JsonObject ?: return@forEachIndexed
+      if (PolicyDoc.stringsOf(rule["users"]).isEmpty()) {
+        found += Problem(index, "ssh 规则必须指定 users（例如 root 或 autogroup:nonroot）")
+      }
+    }
+    val acls = policy["acls"] as? JsonArray ?: return found
     acls.forEachIndexed { index, element ->
       val rule = element as? JsonObject ?: return@forEachIndexed
       val action = rule["action"]?.jsonPrimitive?.contentOrNull

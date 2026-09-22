@@ -48,4 +48,15 @@ class PolicyValidateTest {
     assertTrue(problems.any { it.message.contains("accept") })
     assertTrue(problems.any { it.message.contains("端口") })
   }
+
+  @Test
+  fun catchesSshRulesWithoutUsers() {
+    // The server: "users must be specified"
+    val policy = requireNotNull(PolicyDoc.parse("""{ "ssh": [ { "action": "accept", "src": ["echo@"], "dst": ["tag:x"], "users": [] }, { "action": "accept", "src": [], "dst": [], "users": ["root"] } ] }"""))
+    val problems = PolicyValidate.problems(policy)
+    assertEquals(1, problems.size)
+    assertEquals(0, problems.single().ruleIndex)
+    assertTrue(problems.single().message.contains("users"))
+  }
+
 }
