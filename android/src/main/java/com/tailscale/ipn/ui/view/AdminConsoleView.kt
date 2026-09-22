@@ -5,7 +5,9 @@ package com.tailscale.ipn.ui.view
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -139,6 +141,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
   var pendingExpireKey by remember { mutableStateOf<AdminApi.HsPreAuthKey?>(null) }
   var pendingRenameUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
   var pendingDeleteUser by remember { mutableStateOf<AdminApi.HsUser?>(null) }
+  var addRuleRequest by remember { mutableStateOf(false) }
   var showCreateKey by remember { mutableStateOf(false) }
   var showCreateUser by remember { mutableStateOf(false) }
 
@@ -310,6 +313,12 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                     Icons.Default.Add,
                     contentDescription = stringResource(R.string.admin_new_preauth_key))
               }
+          selectedTab == 4 ->
+              FloatingActionButton(onClick = { addRuleRequest = true }) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.policy_edit_add_rule))
+              }
           else -> Unit
         }
       }) { innerPadding ->
@@ -435,6 +444,10 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                                       if (node.id in selected) selected - node.id
                                       else selected + node.id
                                 },
+                                onLongPress = {
+                                  selecting = true
+                                  selected = setOf(node.id)
+                                },
                                 expanded = expandedNode == node.id,
                                 onToggleExpanded = {
                                   expandedNode = if (expandedNode == node.id) null else node.id
@@ -533,6 +546,8 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                       // What a rule can legitimately point at, from the tailnet's own data.
                       users = users.map { it.name }.filter { it.isNotBlank() },
                       tags = nodes.flatMap { it.validTags }.distinct().sorted(),
+                      addRuleRequest = addRuleRequest,
+                      onAddRuleHandled = { addRuleRequest = false },
                       onSave = { savePolicy(it) })
                 }
               }
@@ -716,6 +731,7 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NodeRow(
     node: AdminApi.HsNode,
@@ -723,6 +739,7 @@ private fun NodeRow(
     selecting: Boolean,
     selected: Boolean,
     onToggleSelected: () -> Unit,
+    onLongPress: () -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onExpire: () -> Unit,
@@ -734,7 +751,13 @@ private fun NodeRow(
   val onlineLabel = stringResource(R.string.admin_device_online)
   val offlineLabel = stringResource(R.string.admin_device_offline)
   ListItem(
-      modifier = if (selecting) Modifier.clickable(onClick = onToggleSelected) else Modifier,
+      modifier =
+          if (selecting) {
+            Modifier.clickable(onClick = onToggleSelected)
+          } else {
+            // Tap expands, like a user row; long press starts selecting.
+            Modifier.combinedClickable(onClick = onToggleExpanded, onLongClick = onLongPress)
+          },
       leadingContent = {
         Row(verticalAlignment = Alignment.CenterVertically) {
         if (selecting) {
@@ -1373,8 +1396,9 @@ private fun SelectionBar(
       }
 }
 
+/** Shared by every dialog that asks before doing something irreversible. */
 @Composable
-private fun ConfirmDialog(
+internal fun ConfirmDialog(
     title: String,
     message: String,
     confirmLabel: String,

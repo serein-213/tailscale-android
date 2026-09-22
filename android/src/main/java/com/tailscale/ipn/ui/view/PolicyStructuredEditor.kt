@@ -144,7 +144,10 @@ fun PolicyEntrySheet(
 
   ModalBottomSheet(onDismissRequest = onDismiss) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-      Text(target.title, style = MaterialTheme.typography.titleMedium, fontFamily = FontFamily.Monospace)
+      Text(
+          target.title,
+          style = MaterialTheme.typography.headlineSmall,
+          fontFamily = FontFamily.Monospace)
 
       if (target.action != null) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {

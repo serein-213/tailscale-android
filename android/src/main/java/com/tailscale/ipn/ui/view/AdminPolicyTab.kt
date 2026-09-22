@@ -21,10 +21,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +84,8 @@ fun AdminPolicyTab(
     saving: Boolean,
     users: List<String>,
     tags: List<String>,
+    addRuleRequest: Boolean,
+    onAddRuleHandled: () -> Unit,
     onSave: (String) -> Unit,
 ) {
   val clipboard = LocalClipboardManager.current
@@ -95,6 +101,7 @@ fun AdminPolicyTab(
   var searching by remember { mutableStateOf(false) }
   var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
   var addingTo by remember { mutableStateOf<String?>(null) }
+  var confirmDiscard by remember { mutableStateOf(false) }
   var query by remember { mutableStateOf("") }
   val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
   val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
@@ -173,6 +180,16 @@ fun AdminPolicyTab(
   }
   // Read off the main thread: the encrypted preferences open the keystore on first access.
   LaunchedEffect(policyText) { backup = withContext(Dispatchers.IO) { PolicyBackup.last() } }
+  // The screen owns the FAB; the append happens here, where the draft lives.
+  LaunchedEffect(addRuleRequest) {
+    if (addRuleRequest) {
+      structured.onEdit(
+          StructuredEdit.AddRule(
+              section = "acls", action = "accept", src = emptyList(), dst = emptyList()))
+      onAddRuleHandled()
+    }
+  }
+
   LaunchedEffect(policyText, saving, pendingSave) {
     val pending = pendingSave
     if (!saving && pending != null && policyText == pending) {
@@ -186,40 +203,24 @@ fun AdminPolicyTab(
     Row(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-          if (doc != null) {
-            ViewToggle(
-                label = stringResource(R.string.policy_view_structured),
-                selected = !showRaw,
-                onClick = { showRaw = false })
-            ViewToggle(
-                label = stringResource(R.string.policy_view_raw),
-                selected = showRaw,
-                onClick = { showRaw = true })
-          }
-          Box(Modifier.weight(1f))
+          // The view toggles only mean something outside the raw editor.
           if (!editing && doc != null) {
-            IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
-              Icon(
-                  if (searching) Icons.Default.Close else Icons.Default.Search,
-                  contentDescription = stringResource(R.string.admin_search_devices))
+            SingleChoiceSegmentedButtonRow {
+              SegmentedButton(
+                  selected = !showRaw,
+                  onClick = { showRaw = false },
+                  shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)) {
+                    Text(stringResource(R.string.policy_view_structured))
+                  }
+              SegmentedButton(
+                  selected = showRaw,
+                  onClick = { showRaw = true },
+                  shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)) {
+                    Text(stringResource(R.string.policy_view_raw))
+                  }
             }
           }
-          if (!editing && doc != null && !dirty) {
-            TextButton(
-                enabled = !saving,
-                onClick = {
-                  structured.onEdit(
-                      StructuredEdit.AddRule(
-                          section = "acls",
-                          action = "accept",
-                          // An empty match set: accepted by headscale and neutral for the
-                          // policy's own tests section, unlike a "* -> *:*" placeholder.
-                          src = emptyList(),
-                          dst = emptyList()))
-                }) {
-                  Text(stringResource(R.string.policy_edit_add_rule))
-                }
-          }
+          Box(Modifier.weight(1f))
           if (editing) {
             TextButton(
                 enabled = backup != null && !saving,
@@ -235,18 +236,26 @@ fun AdminPolicyTab(
                   Text(stringResource(R.string.policy_edit_save))
                 }
           } else {
-            TextButton(enabled = policyText.isNotEmpty() && !saving, onClick = { editing = true }) {
-              Text(stringResource(R.string.policy_edit))
+            if (doc != null) {
+              IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
+                Icon(
+                    if (searching) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = stringResource(R.string.policy_search_hint))
+              }
             }
             IconButton(
-                enabled = policyText.isNotEmpty(),
+                enabled = policyText.isNotEmpty() && !saving,
                 onClick = { clipboard.setText(AnnotatedString(policyText)) }) {
                   Icon(
                       painter = painterResource(R.drawable.clipboard),
                       contentDescription = stringResource(R.string.copy_to_clipboard))
                 }
+            TextButton(enabled = policyText.isNotEmpty() && !saving, onClick = { editing = true }) {
+              Text(stringResource(R.string.policy_edit))
+            }
           }
         }
+
     addingTo?.let { section ->
       AddEntryDialog(
           section = section,
@@ -286,7 +295,7 @@ fun AdminPolicyTab(
                     maxLines = 2)
               }
             }
-            TextButton(onClick = { draft = policyText }) {
+            TextButton(onClick = { confirmDiscard = true }) {
               Text(stringResource(R.string.policy_edit_discard))
             }
             TextButton(enabled = !saving, onClick = { confirmSave = true }) {
@@ -385,24 +394,27 @@ fun AdminPolicyTab(
   }
 
   if (confirmSave) {
-    AlertDialog(
-        onDismissRequest = { confirmSave = false },
-        title = { Text(stringResource(R.string.policy_save_title)) },
-        text = { Text(stringResource(R.string.policy_save_warning)) },
-        confirmButton = {
-          TextButton(
-              onClick = {
-                confirmSave = false
-                pendingSave = draft
-                onSave(draft)
-              }) {
-                Text(stringResource(R.string.policy_save_confirm))
-              }
-        },
-        dismissButton = {
-          TextButton(onClick = { confirmSave = false }) {
-            Text(stringResource(R.string.policy_edit_cancel))
-          }
+    ConfirmDialog(
+        title = stringResource(R.string.policy_save_title),
+        message = stringResource(R.string.policy_save_warning),
+        confirmLabel = stringResource(R.string.policy_save_confirm),
+        onDismiss = { confirmSave = false },
+        onConfirm = {
+          confirmSave = false
+          pendingSave = draft
+          onSave(draft)
+        })
+  }
+
+  if (confirmDiscard) {
+    ConfirmDialog(
+        title = stringResource(R.string.policy_edit_discard_title),
+        message = stringResource(R.string.policy_edit_discard_message),
+        confirmLabel = stringResource(R.string.policy_edit_discard),
+        onDismiss = { confirmDiscard = false },
+        onConfirm = {
+          confirmDiscard = false
+          draft = policyText
         })
   }
 }
@@ -441,24 +453,6 @@ private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onCha
   }
 }
 
-@Composable
-private fun ViewToggle(label: String, selected: Boolean, onClick: () -> Unit) {
-  Box(
-      Modifier.padding(top = 4.dp, end = 4.dp)
-          .background(
-              if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-              else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-              RoundedCornerShape(50))
-          .clickable(onClick = onClick)
-          .padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color =
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-}
 
 @Composable
 private fun RawPolicyText(text: String) {
@@ -581,22 +575,25 @@ private fun EntryBlock(
   }
   Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      Text(
-          stringResource(R.string.policy_edit_entry),
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier =
-              Modifier.clickable(enabled = editor != null) {
-                editor?.let {
-                  onEntry(
-                      EntryTarget(
-                          title = ruleTitle(rule),
-                          path = path,
-                          action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
-                          src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
-                          dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
-                }
-              })
+      Box(Modifier.weight(1f))
+      IconButton(
+          enabled = editor != null,
+          onClick = {
+            editor?.let {
+              onEntry(
+                  EntryTarget(
+                      title = ruleTitle(rule),
+                      path = path,
+                      action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
+                      src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
+                      dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
+            }
+          }) {
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = stringResource(R.string.policy_edit_entry),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
     }
     PolicyDoc.ruleFields(rule).forEach { (name, field) ->
       val strings = PolicyDoc.stringsOf(field)
@@ -675,12 +672,21 @@ private fun NamedValueRow(
           maxLines = 1,
           overflow = TextOverflow.Ellipsis)
       val text = if (strings.isNotEmpty()) strings.joinToString(", ") else compactJson(value)
-      Text(
-          text,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          fontFamily = FontFamily.Monospace,
-          modifier = Modifier.padding(top = 2.dp))
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f).padding(top = 2.dp))
+        if (editor != null) {
+          Icon(
+              Icons.Default.Edit,
+              contentDescription = stringResource(R.string.policy_edit_entry),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.padding(start = 8.dp).size(16.dp))
+        }
+      }
     }
   }
 }

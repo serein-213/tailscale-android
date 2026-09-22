@@ -547,7 +547,6 @@
   <string name="policy_search_count">匹配 %1$d / %2$d 条</string>
   <string name="policy_search_none">没有匹配项</string>
   <string name="policy_edit_value">值</string>
-  <string name="policy_edit_values">内容</string>
   <string name="policy_edit_action">动作</string>
   <string name="policy_edit_add_value">添加</string>
   <string name="policy_edit_add">确定</string>
@@ -559,11 +558,11 @@
   <string name="policy_edit_modified">策略有未保存的修改</string>
   <string name="policy_edit_discard">放弃修改</string>
   <string name="policy_edit_add_rule">新增规则</string>
-  <string name="policy_edit_new_rule">新规则（点开可改 src / dst / 动作）</string>
-  <string name="policy_edit_action_accept">允许</string>
-  <string name="policy_edit_action_deny">拒绝</string>
   <string name="policy_edit_new_entry">新增 %1$s 条目</string>
   <string name="policy_edit_entry_name">名称</string>
   <string name="policy_edit_entry_address">地址</string>
   <string name="policy_edit_problems">%1$d 处会被服务端拒绝：%2$s</string>
+  <string name="policy_edit_raw_hint">编辑原文 huJSON</string>
+  <string name="policy_edit_discard_title">放弃这些修改？</string>
+  <string name="policy_edit_discard_message">结构化编辑产生的改动会被丢弃，策略回到上一次读取或保存的样子。</string>
 </resources>
