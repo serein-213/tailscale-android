@@ -530,6 +530,9 @@ fun AdminConsoleView(backToSettings: BackNavigation) {
                       updatedAt = policy?.updatedAt,
                       loading = policyLoading,
                       saving = busy,
+                      // What a rule can legitimately point at, from the tailnet's own data.
+                      users = users.map { it.name }.filter { it.isNotBlank() },
+                      tags = nodes.flatMap { it.validTags }.distinct().sorted(),
                       onSave = { savePolicy(it) })
                 }
               }

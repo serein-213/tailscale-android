@@ -5,6 +5,7 @@ package com.tailscale.ipn.ui.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import kotlinx.coroutines.withContext
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
+import com.tailscale.ipn.ui.admin.PolicyEdit
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
 import kotlinx.serialization.json.JsonArray
@@ -72,6 +74,8 @@ fun AdminPolicyTab(
     updatedAt: String?,
     loading: Boolean,
     saving: Boolean,
+    users: List<String>,
+    tags: List<String>,
     onSave: (String) -> Unit,
 ) {
   val clipboard = LocalClipboardManager.current
@@ -85,11 +89,58 @@ fun AdminPolicyTab(
   var confirmSave by remember { mutableStateOf(false) }
   var backup by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
+  var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
   var query by remember { mutableStateOf("") }
   val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
   val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
   val matches = remember(filtered) { filtered?.let { PolicyDoc.size(it) } ?: 0 }
   val total = remember(doc) { doc?.let { PolicyDoc.size(it) } ?: 0 }
+  val suggestions =
+      remember(doc, users, tags) {
+        policySuggestions(
+            users = users,
+            tags = tags,
+            groups = (doc?.get("groups") as? JsonObject)?.keys.orEmpty().toList(),
+            hosts = (doc?.get("hosts") as? JsonObject)?.keys.orEmpty().toList(),
+            tagOwners = (doc?.get("tagOwners") as? JsonObject)?.keys.orEmpty().toList())
+      }
+
+  /** The engine refuses paths it cannot splice; say so instead of quietly doing nothing. */
+  fun onEditFailed() {
+    android.util.Log.w("AdminPolicyTab", "structured edit did not apply")
+  }
+
+  val dirty = draft != policyText
+  val structured =
+      remember(draft, users, tags) {
+        StructuredEditor(
+            users = users,
+            tags = tags,
+            onEdit = { edit ->
+              val next =
+                  when (edit) {
+                    is StructuredEdit.SetAction ->
+                        // The action field, never the rule itself.
+                        PolicyEdit.replace(
+                            draft,
+                            edit.path + PolicyEdit.Step.Key("action"),
+                            PolicyEdit.quote(edit.action))
+                    is StructuredEdit.SetList ->
+                        PolicyEdit.replaceArray(draft, edit.path, edit.values)
+                    is StructuredEdit.SetValue ->
+                        edit.value.takeIf { it.isNotBlank() }?.let {
+                          PolicyEdit.replace(draft, edit.path, PolicyEdit.quote(it))
+                        }
+                    is StructuredEdit.RemoveEntry -> PolicyEdit.remove(draft, edit.path)
+                    is StructuredEdit.AddRule ->
+                        PolicyEdit.appendTo(
+                            draft,
+                            listOf(PolicyEdit.Step.Key(edit.section)),
+                            """{ "action": "\${edit.action}", "src": [\${edit.src.joinToString(", ") { PolicyEdit.quote(it) }}], "dst": [\${edit.dst.joinToString(", ") { PolicyEdit.quote(it) }}] }""")
+                  }
+              if (next != null) draft = next else onEditFailed()
+            })
+      }
 
   // Matches are only visible in the structured view.
   LaunchedEffect(query) { if (query.isNotBlank()) showRaw = false }
@@ -130,6 +181,22 @@ fun AdminPolicyTab(
                   contentDescription = stringResource(R.string.admin_search_devices))
             }
           }
+          if (!editing && doc != null && !dirty) {
+            TextButton(
+                enabled = !saving,
+                onClick = {
+                  structured.onEdit(
+                      StructuredEdit.AddRule(
+                          section = "acls",
+                          action = "accept",
+                          // An empty match set: accepted by headscale and neutral for the
+                          // policy's own tests section, unlike a "* -> *:*" placeholder.
+                          src = emptyList(),
+                          dst = emptyList()))
+                }) {
+                  Text(stringResource(R.string.policy_edit_add_rule))
+                }
+          }
           if (editing) {
             TextButton(
                 enabled = backup != null && !saving,
@@ -157,6 +224,24 @@ fun AdminPolicyTab(
                 }
           }
         }
+    if (dirty && !editing) {
+      Row(
+          Modifier.fillMaxWidth()
+              .background(MaterialTheme.colorScheme.secondaryContainer)
+              .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+          verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.policy_edit_modified),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f))
+            TextButton(onClick = { draft = policyText }) {
+              Text(stringResource(R.string.policy_edit_discard))
+            }
+            TextButton(enabled = !saving, onClick = { confirmSave = true }) {
+              Text(stringResource(R.string.policy_edit_save))
+            }
+          }
+    }
     if (searching && doc != null) {
       OutlinedTextField(
           value = query,
@@ -216,15 +301,28 @@ fun AdminPolicyTab(
         RawPolicyText(policyText)
       }
       showRaw -> RawPolicyText(policyText)
-      filtered == null -> StructuredPolicy(doc)
+      filtered == null -> StructuredPolicy(doc, editor = structured, onEntry = { entryTarget = it })
       query.isNotBlank() && matches == 0 ->
           Text(
               stringResource(R.string.policy_search_none),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               modifier = Modifier.padding(16.dp))
-      else -> StructuredPolicy(filtered, forceExpanded = query.isNotBlank())
+      else ->
+          StructuredPolicy(
+              filtered,
+              forceExpanded = query.isNotBlank(),
+              editor = structured,
+              onEntry = { entryTarget = it })
     }
+  }
+
+  entryTarget?.let { target ->
+    PolicyEntrySheet(
+        target = target,
+        editor = structured,
+        suggestions = suggestions,
+        onDismiss = { entryTarget = null })
   }
 
   if (confirmSave) {
@@ -311,7 +409,12 @@ private fun RawPolicyText(text: String) {
 }
 
 @Composable
-private fun StructuredPolicy(doc: JsonObject, forceExpanded: Boolean = false) {
+private fun StructuredPolicy(
+    doc: JsonObject,
+    forceExpanded: Boolean = false,
+    editor: StructuredEditor? = null,
+    onEntry: (EntryTarget) -> Unit = {},
+) {
   val sections = remember(doc) { PolicyDoc.sections(doc) }
   // Rules are what people come here for; the rest stays collapsed.
   val expanded = remember(doc) { mutableStateMapOf<String, Boolean>().apply { put("acls", true) } }
@@ -331,13 +434,31 @@ private fun StructuredPolicy(doc: JsonObject, forceExpanded: Boolean = false) {
         when (value) {
           is JsonArray ->
               items(value.size, key = { "$key-$it" }) { index ->
-                EntryBlock(section = key, value = value[index])
+                EntryBlock(
+                    section = key,
+                    value = value[index],
+                    path = listOf(PolicyEdit.Step.Key(key), PolicyEdit.Step.Index(index)),
+                    editor = editor,
+                    onEntry = onEntry)
               }
           is JsonObject ->
               items(value.entries.toList(), key = { "$key-${it.key}" }) { (name, v) ->
-                NamedValueRow(name = name, value = v)
+                NamedValueRow(
+                    name = name,
+                    value = v,
+                    path = listOf(PolicyEdit.Step.Key(key), PolicyEdit.Step.Key(name)),
+                    editor = editor,
+                    onEntry = onEntry)
               }
-          else -> item("$key-value") { NamedValueRow(name = key, value = value) }
+          else ->
+              item("$key-value") {
+                NamedValueRow(
+                    name = key,
+                    value = value,
+                    path = listOf(PolicyEdit.Step.Key(key)),
+                    editor = editor,
+                    onEntry = onEntry)
+              }
         }
       }
       item("divider-$key") { Lists.ItemDivider() }
@@ -382,12 +503,36 @@ private fun SectionHeader(
 
 /** One rule (acls/ssh/tests entry): its fields, one per line, with the action called out. */
 @Composable
-private fun EntryBlock(section: String, value: JsonElement) {
+private fun EntryBlock(
+    section: String,
+    value: JsonElement,
+    path: List<PolicyEdit.Step>,
+    editor: StructuredEditor?,
+    onEntry: (EntryTarget) -> Unit,
+) {
   val rule = value as? JsonObject ?: run {
     NamedValueRow(name = section, value = value)
     return
   }
   Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      Text(
+          stringResource(R.string.policy_edit_entry),
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier =
+              Modifier.clickable(enabled = editor != null) {
+                editor?.let {
+                  onEntry(
+                      EntryTarget(
+                          title = ruleTitle(rule),
+                          path = path,
+                          action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept",
+                          src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
+                          dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() }))
+                }
+              })
+    }
     PolicyDoc.ruleFields(rule).forEach { (name, field) ->
       val strings = PolicyDoc.stringsOf(field)
       if (name == "action" && strings.size == 1) {
@@ -438,9 +583,25 @@ private fun FieldLine(label: String, value: String) {
 
 /** A named member of a section: "nas: 100.64.0.9", "tag:router: [group:family]". */
 @Composable
-private fun NamedValueRow(name: String, value: JsonElement?) {
+private fun NamedValueRow(
+    name: String,
+    value: JsonElement?,
+    path: List<PolicyEdit.Step> = emptyList(),
+    editor: StructuredEditor? = null,
+    onEntry: (EntryTarget) -> Unit = {},
+) {
   val strings = PolicyDoc.stringsOf(value)
-  ListItemShell {
+  ListItemShell(
+      onClick = {
+        editor?.let {
+          onEntry(
+              EntryTarget(
+                  title = name,
+                  path = path,
+                  value = if (value is JsonPrimitive) value.contentOrNull else null,
+                  src = if (value is JsonArray) strings else null))
+        }
+      }) {
     Column(Modifier.fillMaxWidth()) {
       Text(
           name,
@@ -504,3 +665,13 @@ private fun fieldLabel(key: String): Int? =
       "deny" -> R.string.policy_field_deny
       else -> null
     }
+
+/** Short one-line label for a rule, reused as the editor sheet's title. */
+private fun ruleTitle(rule: JsonObject): String {
+  val action = (rule["action"] as? JsonPrimitive)?.contentOrNull ?: "accept"
+  val src = PolicyDoc.stringsOf(rule["src"]).joinToString(", ")
+  val dst = PolicyDoc.stringsOf(rule["dst"]).joinToString(", ")
+  return "$action  $src  →  $dst"
+}
+
+private fun JsonElement.stringOrNull(): String? = (this as? JsonPrimitive)?.contentOrNull

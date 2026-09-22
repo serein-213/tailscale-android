@@ -546,4 +546,20 @@
   <string name="policy_search_hint">搜索规则、用户、主机、端口…</string>
   <string name="policy_search_count">匹配 %1$d / %2$d 条</string>
   <string name="policy_search_none">没有匹配项</string>
+  <string name="policy_edit_value">值</string>
+  <string name="policy_edit_values">内容</string>
+  <string name="policy_edit_action">动作</string>
+  <string name="policy_edit_add_value">添加</string>
+  <string name="policy_edit_add">确定</string>
+  <string name="policy_edit_remove">移除</string>
+  <string name="policy_edit_none">（空）</string>
+  <string name="policy_edit_remove_entry">删除此条目</string>
+  <string name="policy_edit_remove_title">删除这个条目？</string>
+  <string name="policy_edit_entry">编辑</string>
+  <string name="policy_edit_modified">策略有未保存的修改</string>
+  <string name="policy_edit_discard">放弃修改</string>
+  <string name="policy_edit_add_rule">新增规则</string>
+  <string name="policy_edit_new_rule">新规则（点开可改 src / dst / 动作）</string>
+  <string name="policy_edit_action_accept">允许</string>
+  <string name="policy_edit_action_deny">拒绝</string>
 </resources>
