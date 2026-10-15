@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -20,6 +21,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tailscale.ipn.R
 import com.tailscale.ipn.mdm.MDMSettings
@@ -42,6 +46,23 @@ fun DNSSettingsView(
     backToSettings: BackNavigation,
     model: DNSSettingsViewModel = viewModel(factory = DNSSettingsViewModelFactory()),
 ) {
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner, model) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_RESUME -> model.startRefreshing()
+        Lifecycle.Event.ON_PAUSE -> model.stopRefreshing()
+        else -> Unit
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        model.startRefreshing()
+    onDispose {
+      lifecycleOwner.lifecycle.removeObserver(observer)
+      model.stopRefreshing()
+    }
+  }
   val state: DNSEnablementState by model.enablementState.collectAsState()
   val resolvers = model.dnsConfig.collectAsState().value?.Resolvers ?: emptyList()
   val domains = model.dnsConfig.collectAsState().value?.Domains ?: emptyList()

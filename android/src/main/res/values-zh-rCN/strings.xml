@@ -228,7 +228,6 @@
     <string name="required_suggested_tailnet">必需/建议的 Tailnet</string>
     <string name="custom_control_server_url">自定义控制服务器 URL</string>
     <string name="custom_admin_console_url">管理控制台 URL</string>
-    <string name="custom_admin_console_placeholder">https://admin.your-headscale.com</string>
     <string name="custom_control_settings">自定义服务器设置</string>
     <string name="save">保存</string>
     <string name="use_this_field_to_specify_a_custom_coordination_server_url_such_as_a_headscale_instance">使用此字段指定自定义协调服务器 URL，例如 Headscale 实例。</string>
@@ -411,15 +410,8 @@
     <string name="update_check_failed_title">检查更新失败</string>
 
     <!-- 补全缺失的译文 -->
-    <string name="app_name">Tailscale</string>
-    <string name="tile_name">Tailscale</string>
     <string name="copy">复制</string>
     <string name="copied">已复制</string>
-    <string name="empty" />
-    <string name="placeholder">--</string>
-    <string name="template">%s</string>
-    <string name="custom_control_placeholder">https://my.custom.server.com</string>
-    <string name="mullvad_exit_nodes">Mullvad VPN</string>
     <string name="key_expiry_channel_name">密钥到期</string>
     <string name="key_expiry_channel_description">当你的 Tailscale 设备密钥即将过期时通知你。</string>
     <string name="key_expiry_notification_title">Tailscale 登录即将过期</string>

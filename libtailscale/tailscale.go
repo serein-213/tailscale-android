@@ -5,6 +5,7 @@ package libtailscale
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -42,7 +43,7 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 		dataDir:        dataDir,
 		appCtx:         appCtx,
 	}
-	a.ready.Add(2)
+	a.ready = newStartupGate(2)
 
 	a.store = newStateStore(a.appCtx)
 	a.policyStore = &syspolicyStore{a: a}
@@ -63,6 +64,7 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
+				a.ready.complete(fmt.Errorf("backend startup panic: %v", p))
 				log.Printf("panic in runBackend %s: %s", p, debug.Stack())
 
 			}
@@ -70,6 +72,7 @@ func newApp(dataDir, directFileRoot string, hardwareAttestationPref bool, appCtx
 
 		ctx := context.Background()
 		if err := a.runBackend(ctx, hwAttestEnabled); err != nil {
+			a.ready.complete(err)
 			fatalErr(err)
 		}
 	}()

@@ -51,14 +51,15 @@ sealed interface StructuredEdit {
   data class RemoveEntry(val path: List<PolicyEdit.Step>) : StructuredEdit
 
   /** A new named entry (a host, a group, a tag owner) is added to [section]. */
-  data class AddEntry(val section: String, val name: String, val value: JsonFragment) : StructuredEdit
+  data class AddEntry(val section: String, val name: String, val value: JsonFragment) :
+      StructuredEdit
 
   /** A new rule is appended to [section]. */
   data class AddRule(
       val section: String,
       val action: String,
       val src: List<String>,
-      val dst: List<String>
+      val dst: List<String>,
   ) : StructuredEdit
 }
 
@@ -90,17 +91,17 @@ data class EntryTarget(
     val users: List<String>? = null,
     /** Which section the entry lives in: dst means different things in acls and ssh. */
     val section: String? = null,
+    val srcPath: List<PolicyEdit.Step> = path + PolicyEdit.Step.Key("src"),
 )
 
 /** Local users an ssh rule can grant: the usual ones plus whoever the console knows. */
-fun sshUserSuggestions(editor: StructuredEditor): List<String> =
-    buildList {
-          add("root")
-          add("autogroup:nonroot")
-          addAll(editor.users)
-        }
-        .distinct()
-        .sorted()
+fun sshUserSuggestions(editor: StructuredEditor): List<String> = buildList {
+  add("root")
+  add("autogroup:nonroot")
+  addAll(editor.users)
+}
+    .distinct()
+    .sorted()
 
 /** Suggestion list for a value: what the policy already defines, plus the console's own data. */
 fun policySuggestions(
@@ -109,20 +110,24 @@ fun policySuggestions(
     groups: List<String>,
     hosts: List<String>,
     tagOwners: List<String>,
-): List<String> =
-    buildList {
-          add("*")
-          addAll(
-              listOf(
-                  "autogroup:internet", "autogroup:member", "autogroup:self", "autogroup:tagged"))
-          addAll(groups)
-          addAll(tagOwners)
-          addAll(hosts)
-          addAll(tags)
-          addAll(users)
-        }
-        .distinct()
-        .sorted()
+): List<String> = buildList {
+  add("*")
+  addAll(
+      listOf(
+          "autogroup:internet",
+          "autogroup:member",
+          "autogroup:self",
+          "autogroup:tagged",
+      )
+  )
+  addAll(groups)
+  addAll(tagOwners)
+  addAll(hosts)
+  addAll(tags)
+  addAll(users)
+}
+    .distinct()
+    .sorted()
 
 /**
  * Values a dst may take: what the policy already uses plus every host with a wildcard port, since a
@@ -132,16 +137,15 @@ fun dstSuggestions(
     hosts: List<String>,
     existingDst: List<String>,
     base: List<String>,
-): List<String> =
-    buildList {
-          addAll(base.filterNot { it.contains('.') || it == "*" })
-          add("*:*")
-          add("autogroup:internet:*")
-          addAll(existingDst)
-          addAll(hosts.map { "$it:*" })
-        }
-        .distinct()
-        .sorted()
+): List<String> = buildList {
+  addAll(base.filterNot { it.contains('.') || it == "*" })
+  add("*:*")
+  add("autogroup:internet:*")
+  addAll(existingDst)
+  addAll(hosts.map { "$it:*" })
+}
+    .distinct()
+    .sorted()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,10 +168,14 @@ fun PolicyEntrySheet(
       Text(
           target.title,
           style = MaterialTheme.typography.headlineSmall,
-          fontFamily = FontFamily.Monospace)
+          fontFamily = FontFamily.Monospace,
+      )
 
       if (target.action != null) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
           listOf("accept", "deny").forEach { choice ->
             FilterChip(
                 selected = action == choice,
@@ -175,7 +183,8 @@ fun PolicyEntrySheet(
                   action = choice
                   editor.onEdit(StructuredEdit.SetAction(target.path, choice))
                 },
-                label = { Text(choice) })
+                label = { Text(choice) },
+            )
           }
         }
       }
@@ -188,13 +197,14 @@ fun PolicyEntrySheet(
             onAdd = { picked ->
               if (picked !in src) {
                 src = src + picked
-                editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("src"), src))
+                editor.onEdit(StructuredEdit.SetList(target.srcPath, src))
               }
             },
             onRemove = { item ->
               src = src - item
-              editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("src"), src))
-            })
+              editor.onEdit(StructuredEdit.SetList(target.srcPath, src))
+            },
+        )
       }
 
       if (target.dst != null) {
@@ -211,7 +221,8 @@ fun PolicyEntrySheet(
             onRemove = { item ->
               dst = dst - item
               editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), dst))
-            })
+            },
+        )
       }
 
       if (target.users != null) {
@@ -222,13 +233,18 @@ fun PolicyEntrySheet(
             onAdd = { picked ->
               if (picked !in users) {
                 users = users + picked
-                editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users))
+                editor.onEdit(
+                    StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users)
+                )
               }
             },
             onRemove = { item ->
               users = users - item
-              editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users))
-            })
+              editor.onEdit(
+                  StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users)
+              )
+            },
+        )
       }
 
       if (target.value != null) {
@@ -244,13 +260,15 @@ fun PolicyEntrySheet(
               // Clearing a value is not a thing: the entry itself goes.
               onDismiss()
               editor.onEdit(StructuredEdit.RemoveEntry(target.path))
-            })
+            },
+        )
       }
 
       TextButton(onClick = { confirmRemove = true }, modifier = Modifier.padding(top = 16.dp)) {
         Text(
             stringResource(R.string.policy_edit_remove_entry),
-            color = MaterialTheme.colorScheme.error)
+            color = MaterialTheme.colorScheme.error,
+        )
       }
     }
   }
@@ -266,19 +284,19 @@ fun PolicyEntrySheet(
                 confirmRemove = false
                 editor.onEdit(StructuredEdit.RemoveEntry(target.path))
                 onDismiss()
-              }) {
-                Text(
-                    stringResource(R.string.policy_edit_remove_entry),
-                    color = MaterialTheme.colorScheme.error)
               }
+          ) {
+            Text(
+                stringResource(R.string.policy_edit_remove_entry),
+                color = MaterialTheme.colorScheme.error,
+            )
+          }
         },
         dismissButton = {
-          TextButton(onClick = { confirmRemove = false }) {
-            Text(stringResource(R.string.cancel))
-          }
-        })
+          TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.cancel)) }
+        },
+    )
   }
-
 }
 
 /** A list field: its values, an add button that opens the picker, and a remove button per value. */
@@ -293,21 +311,24 @@ private fun ValueEditor(
   var picking by remember { mutableStateOf(false) }
   Row(
       Modifier.fillMaxWidth().padding(top = 12.dp),
-      verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f))
-        TextButton(onClick = { picking = true }) {
-          Text(stringResource(R.string.policy_edit_add_value))
-        }
-      }
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.weight(1f),
+    )
+    TextButton(onClick = { picking = true }) {
+      Text(stringResource(R.string.policy_edit_add_value))
+    }
+  }
   if (values.isEmpty()) {
     Text(
         stringResource(R.string.policy_edit_none),
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant)
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
   }
   values.forEach { item -> ValueRow(item) { onRemove(item) } }
   if (picking) {
@@ -318,18 +339,23 @@ private fun ValueEditor(
         onPick = { picked ->
           picking = false
           onAdd(picked)
-        })
+        },
+    )
   }
 }
 
 @Composable
 private fun ValueRow(value: String, onRemove: () -> Unit) {
-  Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+  Row(
+      Modifier.fillMaxWidth().padding(vertical = 2.dp),
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
     Text(
         value,
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
-        modifier = Modifier.weight(1f))
+        modifier = Modifier.weight(1f),
+    )
     TextButton(onClick = onRemove) {
       Text(stringResource(R.string.policy_edit_remove), color = MaterialTheme.colorScheme.error)
     }
@@ -337,8 +363,8 @@ private fun ValueRow(value: String, onRemove: () -> Unit) {
 }
 
 /**
- * Name (and for hosts an address) for a new entry. The value is written as an empty container so the
- * entry appears immediately and can be filled in with the same sheet every other entry uses.
+ * Name (and for hosts an address) for a new entry. The value is written as an empty container so
+ * the entry appears immediately and can be filled in with the same sheet every other entry uses.
  */
 @Composable
 fun AddEntryDialog(
@@ -362,7 +388,9 @@ fun AddEntryDialog(
               singleLine = true,
               label = { Text(stringResource(R.string.policy_edit_entry_name)) },
               modifier = Modifier.fillMaxWidth(),
-              textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+              textStyle =
+                  MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+          )
           if (hosts) {
             OutlinedTextField(
                 value = value,
@@ -370,7 +398,9 @@ fun AddEntryDialog(
                 singleLine = true,
                 label = { Text(stringResource(R.string.policy_edit_entry_address)) },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                textStyle =
+                    MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            )
           }
         }
       },
@@ -379,7 +409,8 @@ fun AddEntryDialog(
           Text(stringResource(R.string.policy_edit_add))
         }
       },
-      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+  )
 }
 
 /** Free text or one of the values the policy already knows about. */
@@ -401,7 +432,9 @@ private fun ValuePickerDialog(
               onValueChange = { typed = it },
               singleLine = true,
               modifier = Modifier.fillMaxWidth(),
-              textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+              textStyle =
+                  MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+          )
           LazyColumn(Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
             items(suggestions.filterNot { it in current }) { suggestion ->
               Text(
@@ -411,7 +444,8 @@ private fun ValuePickerDialog(
                   modifier =
                       Modifier.fillMaxWidth()
                           .clickable { onPick(suggestion) }
-                          .padding(vertical = 8.dp))
+                          .padding(vertical = 8.dp),
+              )
             }
           }
         }
@@ -421,5 +455,6 @@ private fun ValuePickerDialog(
           Text(stringResource(R.string.policy_edit_add))
         }
       },
-      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+  )
 }

@@ -52,16 +52,12 @@ object PolicyEdit {
     val close = (matchingBracket(text, open) ?: return null) - 1
     val indent = lineIndent(text, open)
     val element = "$indent  "
-    if (text.substring(open + 1, close).isBlank()) {
-      return text.substring(0, open + 1) +
-          "\n$element$json\n$indent" +
-          text.substring(open + 1)
+    if (skipTrivia(text, open + 1) == close) {
+      return text.substring(0, open + 1) + "\n$element$json\n$indent" + text.substring(open + 1)
     }
     // Splice right after the last element so the original line break before "]" stays put.
     val lastEnd = lastElementEnd(text, open, close) ?: return null
-    val between = text.substring(lastEnd, close)
-    val comma = if (between.contains(',')) "" else ","
-    return text.substring(0, lastEnd) + "$comma\n$element$json" + text.substring(lastEnd)
+    return insertAfterLast(text, lastEnd, "$element$json")
   }
 
   /**
@@ -80,14 +76,23 @@ object PolicyEdit {
     val close = (matchingBracket(text, open) ?: return null) - 1
     val indent = lineIndent(text, open)
     val entry = "$indent  ${quote(name)}: $json"
-    if (text.substring(open + 1, close).isBlank()) {
+    if (skipTrivia(text, open + 1) == close) {
       return text.substring(0, open + 1) + "\n$entry\n$indent" + text.substring(open + 1)
     }
     // Splice after the last member so the original line break before "}" stays put.
     val lastEnd = lastMemberEnd(text, open, close) ?: return null
-    val between = text.substring(lastEnd, close)
-    val comma = if (between.contains(',')) "" else ","
-    return text.substring(0, lastEnd) + "$comma\n$entry" + text.substring(lastEnd)
+    return insertAfterLast(text, lastEnd, entry)
+  }
+
+  /** Keep an existing trailing comma after the new entry, never between the wrong values. */
+  private fun insertAfterLast(text: String, lastEnd: Int, entry: String): String {
+    val separator = skipTrivia(text, lastEnd)
+    return if (text.getOrNull(separator) == ',') {
+      val insertion = separator + 1
+      text.substring(0, insertion) + "\n$entry," + text.substring(insertion)
+    } else {
+      text.substring(0, lastEnd) + ",\n$entry" + text.substring(lastEnd)
+    }
   }
 
   /** End (exclusive) of the last member's value in the object between [open] and [close]. */
@@ -164,7 +169,8 @@ object PolicyEdit {
 
   private fun child(text: String, container: Int, step: Step): Member? =
       when (step) {
-        is Step.Key -> if (text.getOrNull(container) == '{') member(text, container, step.name) else null
+        is Step.Key ->
+            if (text.getOrNull(container) == '{') member(text, container, step.name) else null
         is Step.Index ->
             if (text.getOrNull(container) == '[') element(text, container, step.index) else null
       }
@@ -212,7 +218,8 @@ object PolicyEdit {
     if (start >= text.length) return null
     return when (text[start]) {
       '"' -> matchString(text, start).takeIf { it > 0 }
-      '{', '[' -> matchingBracket(text, start)
+      '{',
+      '[' -> matchingBracket(text, start)
       else -> {
         var i = start
         while (i < text.length && text[i] != ',' && text[i] != '}' && text[i] != ']') {
@@ -320,8 +327,7 @@ object PolicyEdit {
         text.substring(from, member.start).isBlank() &&
             text.substring(member.end, to).trim().isEmpty()
     return if (aloneOnItsLine) from to to
-    else if (member.end > valueEnd) member.start to member.end
-    else member.start to valueEnd
+    else if (member.end > valueEnd) member.start to member.end else member.start to valueEnd
   }
 
   private fun unquote(raw: String): String =

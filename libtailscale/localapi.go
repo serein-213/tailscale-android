@@ -137,13 +137,14 @@ func (app *App) callLocalAPI(timeoutMillis int, method, endpoint string, header 
 		}
 	}()
 
-	app.ready.Wait()
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(uint64(timeoutMillis)*uint64(time.Millisecond)))
 	defer cancel()
 
 	if body != nil {
 		defer body.Close()
+	}
+	if err := app.ready.wait(ctx); err != nil {
+		return nil, fmt.Errorf("backend unavailable for %s: %w", endpoint, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)

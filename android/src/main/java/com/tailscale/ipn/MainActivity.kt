@@ -79,7 +79,6 @@ import com.tailscale.ipn.ui.view.MDMSettingsDebugView
 import com.tailscale.ipn.ui.view.MainView
 import com.tailscale.ipn.ui.view.MainViewNavigation
 import com.tailscale.ipn.ui.view.ManagedByView
-import com.tailscale.ipn.ui.view.ThemeSettingsView
 import com.tailscale.ipn.ui.view.MullvadExitNodePicker
 import com.tailscale.ipn.ui.view.MullvadExitNodePickerList
 import com.tailscale.ipn.ui.view.MullvadInfoView
@@ -95,6 +94,7 @@ import com.tailscale.ipn.ui.view.SubnetRoutingView
 import com.tailscale.ipn.ui.view.TaildropDirView
 import com.tailscale.ipn.ui.view.TaildropDirectoryPickerPrompt
 import com.tailscale.ipn.ui.view.TailnetLockSetupView
+import com.tailscale.ipn.ui.view.ThemeSettingsView
 import com.tailscale.ipn.ui.view.UserSwitcherNav
 import com.tailscale.ipn.ui.view.UserSwitcherView
 import com.tailscale.ipn.ui.viewModel.AppViewModel
@@ -606,6 +606,8 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
+    runCatching { com.tailscale.ipn.ui.util.UpdateChecker.resumePendingInstall(this) }
+        .onFailure { TSLog.e(TAG, "Could not resume update installation", it) }
     val restrictionsManager =
         this.getSystemService(Context.RESTRICTIONS_SERVICE) as RestrictionsManager
     lifecycleScope.launch(Dispatchers.IO) { MDMSettings.update(App.get(), restrictionsManager) }

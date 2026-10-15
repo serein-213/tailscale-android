@@ -26,6 +26,7 @@ object AdminApi {
   private const val PREF_KEY_API_KEY = "headscale_admin_api_key"
   private const val PREF_KEY_BASE_URL = "headscale_admin_base_url"
 
+  @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
   private val json = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
@@ -69,17 +70,21 @@ object AdminApi {
   )
 
   @Serializable private data class NodesResponse(val nodes: List<HsNode> = emptyList())
+
   @Serializable private data class UsersResponse(val users: List<HsUser> = emptyList())
 
-  @Serializable
-  data class HsPolicy(val policy: String = "", val updatedAt: String? = null)
+  @Serializable data class HsPolicy(val policy: String = "", val updatedAt: String? = null)
 
   @Serializable private data class CreateUserRequest(val name: String)
+
   @Serializable private data class CreateUserResponse(val user: HsUser? = null)
 
   @Serializable private data class NodeResponse(val node: HsNode? = null)
+
   @Serializable private data class SetTagsRequest(val tags: List<String>)
+
   @Serializable private data class UpdatePolicyRequest(val policy: String)
+
   @Serializable private data class ApproveRoutesRequest(val routes: List<String>)
 
   @Serializable
@@ -112,92 +117,107 @@ object AdminApi {
         .apply {
           if (baseUrl.isNullOrBlank()) remove(PREF_KEY_BASE_URL)
           else putString(PREF_KEY_BASE_URL, normalizeBaseUrl(baseUrl))
-          if (apiKey.isNullOrBlank()) remove(PREF_KEY_API_KEY) else putString(PREF_KEY_API_KEY, apiKey.trim())
+          if (apiKey.isNullOrBlank()) remove(PREF_KEY_API_KEY)
+          else putString(PREF_KEY_API_KEY, apiKey.trim())
         }
         .apply()
   }
 
   private fun normalizeBaseUrl(url: String): String = normalizeBaseUrlInternal(url)
 
-  private fun prefs() = runCatching { App.get().getEncryptedPrefs() }
-      .onFailure { TSLog.e(TAG, "encrypted prefs unavailable", it) }
-      .getOrNull()
+  private fun prefs() = runCatching {
+    App.get().getEncryptedPrefs()
+  }.onFailure { TSLog.e(TAG, "encrypted prefs unavailable", it) }.getOrNull()
 
   // ----------------------------------------------------------------- API
 
-  fun nodes(): List<HsNode> = parseNodes(request("GET", "/api/v1/node"))
+  /** Credentials are captured once; an in-flight action cannot move to a different server. */
+  class Session(private val base: String, private val key: String) {
+    val serverId: String = normalizeBaseUrlInternal(base)
 
-  fun users(): List<HsUser> = parseUsers(request("GET", "/api/v1/user"))
+    fun nodes(): List<HsNode> = parseNodes(request("GET", "/api/v1/node"))
 
-  fun preAuthKeys(): List<HsPreAuthKey> =
-      parsePreAuthKeys(request("GET", "/api/v1/preauthkey"))
+    fun users(): List<HsUser> = parseUsers(request("GET", "/api/v1/user"))
 
-  fun policy(): HsPolicy = parsePolicy(request("GET", "/api/v1/policy"))
+    fun preAuthKeys(): List<HsPreAuthKey> = parsePreAuthKeys(request("GET", "/api/v1/preauthkey"))
 
-  /**
-   * Replaces the tailnet policy. Headscale validates it server-side and answers with a parse error
-   * (line and column) when the huJSON is broken, which is the last line of defence.
-   */
-  fun updatePolicy(policyText: String): HsPolicy =
-      parsePolicy(request("PUT", "/api/v1/policy", policyRequestBody(policyText)))
+    fun policy(): HsPolicy = parsePolicy(request("GET", "/api/v1/policy"))
 
-  fun expireNode(id: String) {
-    request("POST", "/api/v1/node/$id/expire")
-  }
+    /**
+     * Replaces the tailnet policy. Headscale validates it server-side and answers with a parse
+     * error (line and column) when the huJSON is broken, which is the last line of defence.
+     */
+    fun updatePolicy(policyText: String): HsPolicy =
+        parsePolicy(request("PUT", "/api/v1/policy", policyRequestBody(policyText)))
 
-  fun deleteNode(id: String) {
-    request("DELETE", "/api/v1/node/$id")
-  }
+    fun expireNode(id: String) {
+      request("POST", "/api/v1/node/$id/expire")
+    }
 
-  fun renameNode(id: String, newName: String) {
-    request("POST", "/api/v1/node/$id/rename/${urlEncode(newName)}")
-  }
+    fun deleteNode(id: String) {
+      request("DELETE", "/api/v1/node/$id")
+    }
 
-  /** Replaces the node's tags; the "tag:" prefix is added when missing. */
-  fun setNodeTags(id: String, tags: List<String>) {
-    val body = json.encodeToString(SetTagsRequest.serializer(), SetTagsRequest(normalizeTags(tags)))
-    request("POST", "/api/v1/node/$id/tags", body)
-  }
+    fun renameNode(id: String, newName: String) {
+      request("POST", "/api/v1/node/$id/rename/${urlEncode(newName)}")
+    }
 
-  /** Approves exactly [routes]: the API replaces the approved set instead of merging into it. */
-  fun approveRoutes(id: String, routes: List<String>) {
-    val body = json.encodeToString(ApproveRoutesRequest.serializer(), ApproveRoutesRequest(routes))
-    request("POST", "/api/v1/node/$id/approve_routes", body)
-  }
+    /** Replaces the node's tags; the "tag:" prefix is added when missing. */
+    fun setNodeTags(id: String, tags: List<String>) {
+      val body =
+          json.encodeToString(SetTagsRequest.serializer(), SetTagsRequest(normalizeTags(tags)))
+      request("POST", "/api/v1/node/$id/tags", body)
+    }
 
-  fun createUser(name: String): HsUser? {
-    val body = json.encodeToString(CreateUserRequest.serializer(), CreateUserRequest(name))
-    return json.decodeFromString<CreateUserResponse>(request("POST", "/api/v1/user", body)).user
-  }
+    /** Approves exactly [routes]: the API replaces the approved set instead of merging into it. */
+    fun approveRoutes(id: String, routes: List<String>) {
+      val body =
+          json.encodeToString(ApproveRoutesRequest.serializer(), ApproveRoutesRequest(routes))
+      request("POST", "/api/v1/node/$id/approve_routes", body)
+    }
 
-  fun renameUser(id: String, newName: String) {
-    request("POST", "/api/v1/user/$id/rename/${urlEncode(newName)}")
-  }
+    fun createUser(name: String): HsUser? {
+      val body = json.encodeToString(CreateUserRequest.serializer(), CreateUserRequest(name))
+      return json.decodeFromString<CreateUserResponse>(request("POST", "/api/v1/user", body)).user
+    }
 
-  fun deleteUser(id: String) {
-    request("DELETE", "/api/v1/user/$id")
-  }
+    fun renameUser(id: String, newName: String) {
+      request("POST", "/api/v1/user/$id/rename/${urlEncode(newName)}")
+    }
 
-  fun expirePreAuthKey(id: String) {
-    request(
-        "POST",
-        "/api/v1/preauthkey/expire",
-        json.encodeToString(IdRequest.serializer(), IdRequest(id)))
-  }
+    fun deleteUser(id: String) {
+      request("DELETE", "/api/v1/user/$id")
+    }
 
-  /** [userId] is the numeric Headscale user id: the API rejects user names here. */
-  fun createPreAuthKey(
-      userId: String,
-      reusable: Boolean,
-      ephemeral: Boolean,
-      expirationRfc3339: String?,
-  ): HsPreAuthKey? {
-    val body =
-        json.encodeToString(
-            CreatePreAuthKeyRequest.serializer(),
-            CreatePreAuthKeyRequest(userId, reusable, ephemeral, expirationRfc3339))
-    return json.decodeFromString<PreAuthKeyResponse>(request("POST", "/api/v1/preauthkey", body))
-        .preAuthKey
+    fun expirePreAuthKey(id: String) {
+      request(
+          "POST",
+          "/api/v1/preauthkey/expire",
+          json.encodeToString(IdRequest.serializer(), IdRequest(id)),
+      )
+    }
+
+    /** [userId] is the numeric Headscale user id: the API rejects user names here. */
+    fun createPreAuthKey(
+        userId: String,
+        reusable: Boolean,
+        ephemeral: Boolean,
+        expirationRfc3339: String?,
+    ): HsPreAuthKey? {
+      val body =
+          json.encodeToString(
+              CreatePreAuthKeyRequest.serializer(),
+              CreatePreAuthKeyRequest(userId, reusable, ephemeral, expirationRfc3339),
+          )
+      return json
+          .decodeFromString<PreAuthKeyResponse>(request("POST", "/api/v1/preauthkey", body))
+          .preAuthKey
+    }
+
+    private fun request(method: String, path: String, body: String? = null): String {
+      if (base.isBlank() || key.isBlank()) throw IOException("Admin API is not configured")
+      return requestWith(method, path, body, base, key)
+    }
   }
 
   // ------------------------------------------------------------- parsing (unit-tested)
@@ -218,9 +238,9 @@ object AdminApi {
   internal fun errorSummary(body: String): String {
     val text = body.trim()
     if (text.isEmpty()) return ""
-    val message =
-        runCatching { json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.content }
-            .getOrNull()
+    val message = runCatching {
+      json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.content
+    }.getOrNull()
     return (message?.takeIf { it.isNotBlank() } ?: text).take(300)
   }
 
@@ -240,14 +260,15 @@ object AdminApi {
 
   /** Adds the required "tag:" prefix and drops duplicates. */
   internal fun normalizeTags(tags: List<String>): List<String> =
-      tags.map { it.trim() }
+      tags
+          .map { it.trim() }
           .filter { it.isNotEmpty() }
           .map { if (it.startsWith("tag:")) it else "tag:$it" }
           .distinct()
 
   /**
-   * Accepts what users paste for the API base: the admin console URL, the API URL itself, or a
-   * bare host. The API always lives at the server root.
+   * Accepts what users paste for the API base: the admin console URL, the API URL itself, or a bare
+   * host. The API always lives at the server root.
    */
   internal fun normalizeBaseUrlInternal(url: String): String {
     var u = url.trim().trimEnd('/')
@@ -263,13 +284,6 @@ object AdminApi {
   }
 
   // ------------------------------------------------------------- plumbing
-
-  /** Performs a request and returns the raw response body ("" for empty responses). */
-  private fun request(method: String, path: String, body: String? = null): String {
-    val base = baseUrl() ?: throw IOException("Admin API base URL is not configured")
-    val key = apiKey() ?: throw IOException("Admin API key is not configured")
-    return requestWith(method, path, body, base, key)
-  }
 
   /** Transport, with the connection settings injected so it can be tested on the JVM. */
   internal fun requestWith(

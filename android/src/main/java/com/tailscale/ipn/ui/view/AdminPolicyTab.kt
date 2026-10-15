@@ -5,12 +5,11 @@ package com.tailscale.ipn.ui.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,14 +21,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -38,31 +36,30 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.admin.PolicyEdit
+import com.tailscale.ipn.ui.admin.PolicyEditorState
 import com.tailscale.ipn.ui.admin.PolicyValidate
-import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -82,6 +79,8 @@ private val policyRuleSections = setOf("acls", "ssh")
 @Composable
 fun AdminPolicyTab(
     policyText: String,
+    editorState: PolicyEditorState,
+    serverId: String,
     updatedAt: String?,
     loading: Boolean,
     saving: Boolean,
@@ -89,17 +88,13 @@ fun AdminPolicyTab(
     tags: List<String>,
     editPolicyRequest: Boolean,
     onEditPolicyHandled: () -> Unit,
-    onEditingState: (Boolean) -> Unit,
     onSave: (String) -> Unit,
 ) {
   val clipboard = LocalClipboardManager.current
   var showRaw by remember { mutableStateOf(false) }
-  val doc = remember(policyText) { PolicyDoc.parse(policyText) }
-  var editing by remember { mutableStateOf(false) }
-  var draft by remember { mutableStateOf(policyText) }
-  // Set while a save is in flight so success (the saved text comes back from the server) can leave
-  // edit mode, and failure keeps the draft.
-  var pendingSave by remember { mutableStateOf<String?>(null) }
+  var editing by editorState::editing
+  var draft by editorState::draft
+  val doc = remember(draft) { PolicyDoc.parse(draft) }
   var confirmSave by remember { mutableStateOf(false) }
   var backup by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
@@ -128,7 +123,8 @@ fun AdminPolicyTab(
             tags = tags,
             groups = (doc?.get("groups") as? JsonObject)?.keys.orEmpty().toList(),
             hosts = (doc?.get("hosts") as? JsonObject)?.keys.orEmpty().toList(),
-            tagOwners = (doc?.get("tagOwners") as? JsonObject)?.keys.orEmpty().toList())
+            tagOwners = (doc?.get("tagOwners") as? JsonObject)?.keys.orEmpty().toList(),
+        )
       }
 
   /** The engine refuses paths it cannot splice; say so instead of quietly doing nothing. */
@@ -150,13 +146,14 @@ fun AdminPolicyTab(
                         PolicyEdit.replace(
                             draft,
                             edit.path + PolicyEdit.Step.Key("action"),
-                            PolicyEdit.quote(edit.action))
+                            PolicyEdit.quote(edit.action),
+                        )
                     is StructuredEdit.SetList ->
                         PolicyEdit.replaceArray(draft, edit.path, edit.values)
                     is StructuredEdit.SetValue ->
-                        edit.value.takeIf { it.isNotBlank() }?.let {
-                          PolicyEdit.replace(draft, edit.path, PolicyEdit.quote(it))
-                        }
+                        edit.value
+                            .takeIf { it.isNotBlank() }
+                            ?.let { PolicyEdit.replace(draft, edit.path, PolicyEdit.quote(it)) }
                     is StructuredEdit.RemoveEntry -> PolicyEdit.remove(draft, edit.path)
                     is StructuredEdit.AddEntry ->
                         PolicyEdit.addKey(
@@ -166,25 +163,27 @@ fun AdminPolicyTab(
                             when (edit.value) {
                               JsonFragment.EMPTY_ARRAY -> "[]"
                               JsonFragment.EMPTY_STRING -> "\"\""
-                            })
+                            },
+                        )
                     is StructuredEdit.AddRule ->
                         PolicyEdit.appendTo(
                             draft,
                             listOf(PolicyEdit.Step.Key(edit.section)),
-                            ruleJson(edit.section, edit.action, edit.src, edit.dst))
+                            ruleJson(edit.section, edit.action, edit.src, edit.dst),
+                        )
                   }
               if (next != null) draft = next else onEditFailed()
-            })
+            },
+        )
       }
 
   // Matches are only visible in the structured view.
   LaunchedEffect(query) { if (query.isNotBlank()) showRaw = false }
 
-  LaunchedEffect(policyText, editing) {
-    if (!editing) draft = policyText
-  }
   // Read off the main thread: the encrypted preferences open the keystore on first access.
-  LaunchedEffect(policyText) { backup = withContext(Dispatchers.IO) { PolicyBackup.last() } }
+  LaunchedEffect(policyText, serverId) {
+    backup = withContext(Dispatchers.IO) { PolicyBackup.last(serverId) }
+  }
   // The screen owns the FAB; entering edit mode is decided here, next to the draft.
   LaunchedEffect(editPolicyRequest) {
     if (editPolicyRequest) {
@@ -192,88 +191,98 @@ fun AdminPolicyTab(
       onEditPolicyHandled()
     }
   }
-  // The FAB is only meaningful while the policy is not being edited.
-  LaunchedEffect(editing, draft != policyText) { onEditingState(editing || draft != policyText) }
-
-  LaunchedEffect(policyText, saving, pendingSave) {
-    val pending = pendingSave
-    if (!saving && pending != null && policyText == pending) {
-      editing = false
-      pendingSave = null
-      backup = PolicyBackup.last()
-    }
-  }
 
   Column(Modifier.fillMaxSize()) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-          // Timestamp on the left, actions on the right: one line instead of two.
-          if (updatedAt != null) {
-            Text(
-                stringResource(R.string.admin_policy_updated, updatedAt.replace("T", " ").take(16)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f))
-          } else {
-            Box(Modifier.weight(1f))
-          }
-          if (editing) {
-            TextButton(
-                enabled = backup != null && !saving,
-                onClick = { backup?.let { draft = it } }) {
-                  Text(stringResource(R.string.policy_edit_restore))
-                }
-            TextButton(enabled = !saving, onClick = { editing = false; draft = policyText }) {
-              Text(stringResource(R.string.policy_edit_cancel))
-            }
-            TextButton(
-                enabled = draftValid && draft != policyText && !saving,
-                onClick = { confirmSave = true }) {
-                  Text(stringResource(R.string.policy_edit_save))
-                }
-          } else {
-            if (doc != null) {
-              IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
-                Icon(
-                    if (searching) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = stringResource(R.string.policy_search_hint))
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      // Timestamp on the left, actions on the right: one line instead of two.
+      if (updatedAt != null) {
+        Text(
+            stringResource(R.string.admin_policy_updated, updatedAt.replace("T", " ").take(16)),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+      } else {
+        Box(Modifier.weight(1f))
+      }
+      if (editing) {
+        TextButton(
+            enabled = backup != null && !saving,
+            onClick = { backup?.let { draft = it } },
+        ) {
+          Text(stringResource(R.string.policy_edit_restore))
+        }
+        TextButton(
+            enabled = !saving,
+            onClick = {
+              editing = false
+              draft = policyText
+            },
+        ) {
+          Text(stringResource(R.string.policy_edit_cancel))
+        }
+        TextButton(
+            enabled = draftValid && draft != policyText && !saving,
+            onClick = { confirmSave = true },
+        ) {
+          Text(stringResource(R.string.policy_edit_save))
+        }
+      } else {
+        if (doc != null) {
+          IconButton(
+              onClick = {
+                searching = !searching
+                if (!searching) query = ""
               }
-            }
-            // Secondary actions live behind the overflow, the way the rest of the app does it.
-            Box {
-              IconButton(onClick = { menuOpen = true }) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.more_actions))
-              }
-              DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                if (doc != null) {
-                  DropdownMenuItem(
-                      text = {
-                        Text(
-                            stringResource(
-                                if (showRaw) R.string.policy_view_structured_action
-                                else R.string.policy_view_raw_action))
-                      },
-                      onClick = {
-                        menuOpen = false
-                        showRaw = !showRaw
-                      })
-                }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.policy_copy_all)) },
-                    enabled = policyText.isNotEmpty() && !saving,
-                    onClick = {
-                      menuOpen = false
-                      clipboard.setText(AnnotatedString(policyText))
-                    })
-              }
-            }
+          ) {
+            Icon(
+                if (searching) Icons.Default.Close else Icons.Default.Search,
+                contentDescription = stringResource(R.string.policy_search_hint),
+            )
           }
         }
+        // Secondary actions live behind the overflow, the way the rest of the app does it.
+        Box {
+          IconButton(onClick = { menuOpen = true }) {
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.more_actions),
+            )
+          }
+          DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            if (doc != null) {
+              DropdownMenuItem(
+                  text = {
+                    Text(
+                        stringResource(
+                            if (showRaw) R.string.policy_view_structured_action
+                            else R.string.policy_view_raw_action
+                        )
+                    )
+                  },
+                  onClick = {
+                    menuOpen = false
+                    showRaw = !showRaw
+                  },
+              )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.policy_copy_all)) },
+                enabled = policyText.isNotEmpty() && !saving,
+                onClick = {
+                  menuOpen = false
+                  clipboard.setText(AnnotatedString(policyText))
+                },
+            )
+          }
+        }
+      }
+    }
 
     addingTo?.let { section ->
       AddEntryDialog(
@@ -283,16 +292,21 @@ fun AdminPolicyTab(
             addingTo = null
             structured.onEdit(
                 StructuredEdit.AddEntry(
-                    section = section, name = name, value = JsonFragment.EMPTY_ARRAY))
+                    section = section,
+                    name = name,
+                    value = JsonFragment.EMPTY_ARRAY,
+                )
+            )
             if (section == "hosts" && value.isNotEmpty()) {
               draft =
                   PolicyEdit.replace(
-                          draft,
-                          listOf(PolicyEdit.Step.Key(section), PolicyEdit.Step.Key(name)),
-                          PolicyEdit.quote(value))
-                      ?: draft
+                      draft,
+                      listOf(PolicyEdit.Step.Key(section), PolicyEdit.Step.Key(name)),
+                      PolicyEdit.quote(value),
+                  ) ?: draft
             }
-          })
+          },
+      )
     }
 
     if (dirty && !editing) {
@@ -300,34 +314,41 @@ fun AdminPolicyTab(
           Modifier.fillMaxWidth()
               .background(MaterialTheme.colorScheme.secondaryContainer)
               .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-          verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-              Text(
-                  stringResource(R.string.policy_edit_modified),
-                  style = MaterialTheme.typography.bodySmall)
-              if (problems.isNotEmpty()) {
-                Text(
-                    stringResource(
-                        R.string.policy_edit_problems, problems.size, problems.first().message),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 2)
-              }
-            }
-            TextButton(onClick = { confirmDiscard = true }) {
-              Text(stringResource(R.string.policy_edit_discard))
-            }
-            TextButton(enabled = !saving, onClick = { confirmSave = true }) {
-              Text(stringResource(R.string.policy_edit_save))
-            }
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Column(Modifier.weight(1f)) {
+          Text(
+              stringResource(R.string.policy_edit_modified),
+              style = MaterialTheme.typography.bodySmall,
+          )
+          if (problems.isNotEmpty()) {
+            Text(
+                stringResource(
+                    R.string.policy_edit_problems,
+                    problems.size,
+                    problems.first().message,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                maxLines = 2,
+            )
           }
+        }
+        TextButton(onClick = { confirmDiscard = true }) {
+          Text(stringResource(R.string.policy_edit_discard))
+        }
+        TextButton(enabled = draftValid && !saving, onClick = { confirmSave = true }) {
+          Text(stringResource(R.string.policy_edit_save))
+        }
+      }
     }
     if (editing) {
       Text(
           stringResource(R.string.policy_edit_raw_hint),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(start = 16.dp, top = 2.dp))
+          modifier = Modifier.padding(start = 16.dp, top = 2.dp),
+      )
     }
     if (searching && doc != null) {
       OutlinedTextField(
@@ -343,22 +364,31 @@ fun AdminPolicyTab(
             }
           },
           placeholder = { Text(stringResource(R.string.policy_search_hint)) },
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+      )
       if (query.isNotBlank()) {
         Text(
             stringResource(
                 if (matches == 0) R.string.policy_search_none else R.string.policy_search_count,
                 matches,
-                total),
+                total,
+            ),
             style = MaterialTheme.typography.labelMedium,
             color =
                 if (matches == 0) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
+            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+        )
       }
     }
     when {
-      editing -> PolicyEditor(draft = draft, invalid = !draftValid, saving = saving, onChange = { draft = it })
+      editing ->
+          PolicyEditor(
+              draft = draft,
+              invalid = !draftValid,
+              saving = saving,
+              onChange = { draft = it },
+          )
       policyText.isEmpty() && loading -> {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           CircularProgressIndicator(Modifier.size(32.dp))
@@ -369,60 +399,48 @@ fun AdminPolicyTab(
             stringResource(R.string.policy_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(16.dp))
+            modifier = Modifier.padding(16.dp),
+        )
       }
       doc == null -> {
         Text(
             stringResource(R.string.policy_parse_failed),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-        RawPolicyText(policyText)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        RawPolicyText(draft)
       }
-      showRaw -> RawPolicyText(policyText)
-      filtered == null ->
-          StructuredPolicy(
-              doc,
-              editor = structured,
-              onEntry = { entryTarget = it },
-              onAddEntry = { section ->
-                if (section in policyRuleSections) {
-                  // A new rule is neutral by construction: an empty match set.
-                  structured.onEdit(
-                      StructuredEdit.AddRule(
-                          section = section,
-                          action = "accept",
-                          src = emptyList(),
-                          dst = emptyList()))
-                } else {
-                  addingTo = section
-                }
-              })
+      showRaw -> RawPolicyText(draft)
       query.isNotBlank() && matches == 0 ->
           Text(
               stringResource(R.string.policy_search_none),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.padding(16.dp))
+              modifier = Modifier.padding(16.dp),
+          )
       else ->
           StructuredPolicy(
-              filtered,
+              requireNotNull(doc),
+              query = query,
               forceExpanded = query.isNotBlank(),
-              editor = structured,
+              editor = if (saving) null else structured,
               onEntry = { entryTarget = it },
               onAddEntry = { section ->
                 if (section in policyRuleSections) {
-                  // A new rule is neutral by construction: an empty match set.
                   structured.onEdit(
                       StructuredEdit.AddRule(
                           section = section,
                           action = "accept",
                           src = emptyList(),
-                          dst = emptyList()))
+                          dst = emptyList(),
+                      )
+                  )
                 } else {
                   addingTo = section
                 }
-              })
+              },
+          )
     }
   }
 
@@ -438,7 +456,8 @@ fun AdminPolicyTab(
             } else {
               dstSuggestions(hosts = hosts, existingDst = existingDst, base = suggestions)
             },
-        onDismiss = { entryTarget = null })
+        onDismiss = { entryTarget = null },
+    )
   }
 
   if (confirmSave) {
@@ -449,9 +468,9 @@ fun AdminPolicyTab(
         onDismiss = { confirmSave = false },
         onConfirm = {
           confirmSave = false
-          pendingSave = draft
           onSave(draft)
-        })
+        },
+    )
   }
 
   if (confirmDiscard) {
@@ -463,7 +482,8 @@ fun AdminPolicyTab(
         onConfirm = {
           confirmDiscard = false
           draft = policyText
-        })
+        },
+    )
   }
 }
 
@@ -472,7 +492,12 @@ fun AdminPolicyTab(
  * is checked locally first and the server rejects what slips through.
  */
 @Composable
-private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onChange: (String) -> Unit) {
+private fun PolicyEditor(
+    draft: String,
+    invalid: Boolean,
+    saving: Boolean,
+    onChange: (String) -> Unit,
+) {
   Column(Modifier.fillMaxSize()) {
     Text(
         stringResource(R.string.policy_edit_warning),
@@ -481,7 +506,8 @@ private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onCha
         modifier =
             Modifier.fillMaxWidth()
                 .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
-                .padding(horizontal = 16.dp, vertical = 8.dp))
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
     OutlinedTextField(
         value = draft,
         onValueChange = onChange,
@@ -489,25 +515,27 @@ private fun PolicyEditor(draft: String, invalid: Boolean, saving: Boolean, onCha
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
         placeholder = { Text(stringResource(R.string.policy_edit_hint)) },
         isError = invalid,
-        enabled = !saving)
+        enabled = !saving,
+    )
     if (invalid) {
       Text(
           stringResource(R.string.policy_edit_invalid),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.error,
-          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+      )
     }
     if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
   }
 }
-
 
 @Composable
 private fun RawPolicyText(text: String) {
   Column(
       Modifier.fillMaxSize()
           .verticalScroll(rememberScrollState())
-          .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp)) {
+          .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp)
+  ) {
     Text(text, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
   }
 }
@@ -515,21 +543,24 @@ private fun RawPolicyText(text: String) {
 @Composable
 private fun StructuredPolicy(
     doc: JsonObject,
+    query: String = "",
     forceExpanded: Boolean = false,
     editor: StructuredEditor? = null,
     onEntry: (EntryTarget) -> Unit = {},
     onAddEntry: ((String) -> Unit)? = null,
 ) {
-  val sections = remember(doc) { PolicyDoc.sections(doc) }
+  val visible = remember(doc, query) { PolicyDoc.filter(doc, query) }
+  val sections = remember(visible) { PolicyDoc.sections(visible) }
   // Rules are what people come here for; the rest stays collapsed.
   val expanded = remember(doc) { mutableStateMapOf<String, Boolean>().apply { put("acls", true) } }
 
   // Room for the screen's FAB, so the last entry is never covered by it.
   LazyColumn(
       Modifier.fillMaxSize(),
-      contentPadding = PaddingValues(bottom = 96.dp)) {
+      contentPadding = PaddingValues(bottom = 96.dp),
+  ) {
     sections.forEach { key ->
-      val value = doc[key]
+      val value = visible[key]
       val open = forceExpanded || expanded[key] == true
       item("section-$key") {
         SectionHeader(
@@ -537,18 +568,23 @@ private fun StructuredPolicy(
             value = value,
             open = open,
             onToggle = { expanded[key] = !open },
-            onAdd = if (editor != null && key in policyAddableSections) onAddEntry else null)
+            onAdd = if (editor != null && key in policyAddableSections) onAddEntry else null,
+        )
       }
       if (open) {
         when (value) {
           is JsonArray ->
-              items(value.size, key = { "$key-$it" }) { index ->
+              items(
+                  PolicyDoc.matchingIndices(key, doc[key] as JsonArray, query),
+                  key = { "$key-$it" },
+              ) { index ->
                 EntryBlock(
                     section = key,
-                    value = value[index],
+                    value = (doc[key] as JsonArray)[index],
                     path = listOf(PolicyEdit.Step.Key(key), PolicyEdit.Step.Index(index)),
                     editor = editor,
-                    onEntry = onEntry)
+                    onEntry = onEntry,
+                )
               }
           is JsonObject ->
               items(value.entries.toList(), key = { "$key-${it.key}" }) { (name, v) ->
@@ -557,7 +593,8 @@ private fun StructuredPolicy(
                     value = v,
                     path = listOf(PolicyEdit.Step.Key(key), PolicyEdit.Step.Key(name)),
                     editor = editor,
-                    onEntry = onEntry)
+                    onEntry = onEntry,
+                )
               }
           else ->
               item("$key-value") {
@@ -566,7 +603,8 @@ private fun StructuredPolicy(
                     value = value,
                     path = listOf(PolicyEdit.Step.Key(key)),
                     editor = editor,
-                    onEntry = onEntry)
+                    onEntry = onEntry,
+                )
               }
         }
       }
@@ -590,17 +628,20 @@ private fun SectionHeader(
         Text(
             sectionTitle(name)?.let { stringResource(it) } ?: name,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium)
+            fontWeight = FontWeight.Medium,
+        )
         Text(
             name,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
       count?.let {
         Text(
             stringResource(R.string.policy_items, it),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
       onAdd?.let { add ->
         TextButton(onClick = { add(name) }) { Text(stringResource(R.string.policy_edit_add_value)) }
@@ -609,7 +650,8 @@ private fun SectionHeader(
           if (open) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
           contentDescription = null,
           modifier = Modifier.padding(start = 8.dp),
-          tint = MaterialTheme.colorScheme.onSurfaceVariant)
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }
@@ -623,10 +665,12 @@ private fun EntryBlock(
     editor: StructuredEditor?,
     onEntry: (EntryTarget) -> Unit,
 ) {
-  val rule = value as? JsonObject ?: run {
-    NamedValueRow(name = section, value = value)
-    return
-  }
+  val rule =
+      value as? JsonObject
+          ?: run {
+            NamedValueRow(name = section, value = value)
+            return
+          }
   /** Opens the editor for this rule (or does nothing when the view is read-only). */
   fun openEditor() {
     if (editor == null) return
@@ -638,36 +682,41 @@ private fun EntryBlock(
             src = (rule["src"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
             dst = (rule["dst"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
             users = (rule["users"] as? JsonArray)?.mapNotNull { it.stringOrNull() },
-            section = section))
+            section = section,
+        )
+    )
   }
 
   Row(
       Modifier.fillMaxWidth()
           .clickable(enabled = editor != null) { openEditor() }
           .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-      verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-    PolicyDoc.ruleFields(rule).forEach { (name, field) ->
-      val strings = PolicyDoc.stringsOf(field)
-      if (name == "action" && strings.size == 1) {
-        ActionBadge(strings.single())
-      } else if (strings.isNotEmpty()) {
-        FieldLine(
-            label = fieldLabel(name)?.let { stringResource(it) } ?: name,
-            value = strings.joinToString(", "))
-      } else {
-        FieldLine(label = name, value = compactJson(field))
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(Modifier.weight(1f)) {
+      PolicyDoc.ruleFields(rule).forEach { (name, field) ->
+        val strings = PolicyDoc.stringsOf(field)
+        if (name == "action" && strings.size == 1) {
+          ActionBadge(strings.single())
+        } else if (strings.isNotEmpty()) {
+          FieldLine(
+              label = fieldLabel(name)?.let { stringResource(it) } ?: name,
+              value = strings.joinToString(", "),
+          )
+        } else {
+          FieldLine(label = name, value = compactJson(field))
+        }
       }
     }
-        }
-        if (editor != null) {
-          Icon(
-              Icons.Default.Edit,
-              contentDescription = stringResource(R.string.policy_edit_entry),
-              tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.padding(start = 4.dp).size(20.dp))
-        }
-      }
+    if (editor != null) {
+      Icon(
+          Icons.Default.Edit,
+          contentDescription = stringResource(R.string.policy_edit_entry),
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.padding(start = 4.dp).size(20.dp),
+      )
+    }
+  }
 }
 
 @Composable
@@ -678,13 +727,17 @@ private fun ActionBadge(action: String) {
           .background(
               if (accepted) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
               else MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
-              RoundedCornerShape(50))
-          .padding(horizontal = 10.dp, vertical = 2.dp)) {
-        Text(
-            action,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-      }
+              RoundedCornerShape(50),
+          )
+          .padding(horizontal = 10.dp, vertical = 2.dp)
+  ) {
+    Text(
+        action,
+        style = MaterialTheme.typography.labelMedium,
+        color =
+            if (accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+    )
+  }
 }
 
 @Composable
@@ -694,12 +747,14 @@ private fun FieldLine(label: String, value: String) {
         label,
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(end = 10.dp))
+        modifier = Modifier.padding(end = 10.dp),
+    )
     Text(
         value,
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
-        modifier = Modifier.weight(1f))
+        modifier = Modifier.weight(1f),
+    )
   }
 }
 
@@ -721,16 +776,21 @@ private fun NamedValueRow(
                   title = name,
                   path = path,
                   value = if (value is JsonPrimitive) value.contentOrNull else null,
-                  src = if (value is JsonArray) strings else null))
+                  src = if (value is JsonArray) strings else null,
+                  srcPath = path,
+              )
+          )
         }
-      }) {
+      }
+  ) {
     Column(Modifier.fillMaxWidth()) {
       Text(
           name,
           style = MaterialTheme.typography.bodyMedium,
           fontFamily = FontFamily.Monospace,
           maxLines = 1,
-          overflow = TextOverflow.Ellipsis)
+          overflow = TextOverflow.Ellipsis,
+      )
       val text = if (strings.isNotEmpty()) strings.joinToString(", ") else compactJson(value)
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -738,13 +798,15 @@ private fun NamedValueRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = FontFamily.Monospace,
-            modifier = Modifier.weight(1f).padding(top = 2.dp))
+            modifier = Modifier.weight(1f).padding(top = 2.dp),
+        )
         if (editor != null) {
           Icon(
               Icons.Default.Edit,
               contentDescription = stringResource(R.string.policy_edit_entry),
               tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.padding(start = 8.dp).size(24.dp))
+              modifier = Modifier.padding(start = 8.dp).size(24.dp),
+          )
         }
       }
     }
@@ -756,9 +818,10 @@ private fun ListItemShell(onClick: (() -> Unit)? = null, content: @Composable ()
   Box(
       Modifier.fillMaxWidth()
           .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-          .padding(horizontal = 16.dp, vertical = 8.dp)) {
-        content()
-      }
+          .padding(horizontal = 16.dp, vertical = 8.dp)
+  ) {
+    content()
+  }
 }
 
 private fun compactJson(value: JsonElement?): String =
@@ -798,7 +861,12 @@ private fun fieldLabel(key: String): Int? =
     }
 
 /** Renders a rule the way its section needs it: ssh rules carry the users that may log in. */
-private fun ruleJson(section: String, action: String, src: List<String>, dst: List<String>): String {
+private fun ruleJson(
+    section: String,
+    action: String,
+    src: List<String>,
+    dst: List<String>,
+): String {
   val lists =
       "\"action\": ${PolicyEdit.quote(action)}, " +
           "\"src\": [${src.joinToString(", ") { PolicyEdit.quote(it) }}], " +

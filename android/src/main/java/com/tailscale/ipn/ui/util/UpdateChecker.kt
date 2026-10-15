@@ -12,6 +12,9 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.tailscale.ipn.BuildConfig
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -19,9 +22,6 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Checks this project's GitHub releases for a build newer than the one that is running.
@@ -36,6 +36,8 @@ object UpdateChecker {
   private const val API = "https://api.github.com/repos/$REPO"
   private const val ARM64_ASSET = "android-arm64-v8a-release.apk"
   private const val UNIVERSAL_ASSET = "android-universal-release.apk"
+  private const val PENDING_INSTALL = "pending_update_apk"
+  private const val UPDATE_PREFS = "app_updates"
   private const val APK_MIME = "application/vnd.android.package-archive"
 
   private val json = Json { ignoreUnknownKeys = true }
@@ -139,11 +141,11 @@ object UpdateChecker {
       when (status) {
         DownloadManager.STATUS_SUCCESSFUL -> {
           val apk =
-              context
-                  .getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                  ?.let { File(it, fileName) }
+              context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let {
+                File(it, fileName)
+              }
           if (apk == null || !apk.exists()) error("download completed but file is missing")
-          install(context, apk)
+          installDownloadedApk(context, apk)
           return
         }
         DownloadManager.STATUS_FAILED -> error("download failed")
@@ -152,20 +154,52 @@ object UpdateChecker {
   }
 
   /** Opens the system package installer for [apk], asking for install permission if needed. */
-  private fun install(context: Context, apk: File) {
+  internal fun installDownloadedApk(context: Context, apk: File) {
+    context
+        .getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(PENDING_INSTALL, apk.name)
+        .apply()
     if (!context.packageManager.canRequestPackageInstalls()) {
       context.startActivity(
           Intent(
                   Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                  Uri.parse("package:${context.packageName}"))
-              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                  Uri.parse("package:${context.packageName}"),
+              )
+              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
       return
     }
+    launchInstaller(context, apk)
+  }
+
+  /** Called when the activity resumes, including after granting install permission. */
+  fun resumePendingInstall(context: Context): Boolean {
+    if (!context.packageManager.canRequestPackageInstalls()) return false
+    val prefs = context.getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE)
+    val name = prefs.getString(PENDING_INSTALL, null) ?: return false
+    val directory = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+    val apk = directory?.let { File(it, name) }
+    if (File(name).name != name || apk == null || !apk.isFile) {
+      prefs.edit().remove(PENDING_INSTALL).apply()
+      return false
+    }
+    launchInstaller(context, apk)
+    return true
+  }
+
+  private fun launchInstaller(context: Context, apk: File) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
     context.startActivity(
         Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, APK_MIME)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    )
+    context
+        .getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .remove(PENDING_INSTALL)
+        .apply()
   }
 
   private fun <T> getJson(url: String, serializer: KSerializer<T>): T {

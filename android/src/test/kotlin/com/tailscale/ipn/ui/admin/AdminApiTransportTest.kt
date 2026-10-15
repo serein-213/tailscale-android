@@ -6,7 +6,6 @@ package com.tailscale.ipn.ui.admin
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
-import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -41,20 +40,22 @@ class AdminApiTransportTest {
   private class TestServer : Closeable {
     private val socket = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
     val requests: MutableList<Recorded> = Collections.synchronizedList(mutableListOf())
-    val port: Int get() = socket.localPort
+    val port: Int
+      get() = socket.localPort
 
     @Volatile var responseCode = 200
     @Volatile var responseBody = "{}"
 
-    private val worker = thread(isDaemon = true, name = "admin-api-test-server") {
-      while (!socket.isClosed) {
-        try {
-          socket.accept().use { handle(it) }
-        } catch (_: IOException) {
-          return@thread
+    private val worker =
+        thread(isDaemon = true, name = "admin-api-test-server") {
+          while (!socket.isClosed) {
+            try {
+              socket.accept().use { handle(it) }
+            } catch (_: IOException) {
+              return@thread
+            }
+          }
         }
-      }
-    }
 
     private fun handle(client: Socket) {
       client.soTimeout = 5_000
@@ -73,7 +74,8 @@ class AdminApiTransportTest {
         val name = header.substringBefore(":").trim()
         val value = header.substringAfter(":", "").trim()
         when {
-          name.equals("Content-Length", ignoreCase = true) -> contentLength = value.toIntOrNull() ?: 0
+          name.equals("Content-Length", ignoreCase = true) ->
+              contentLength = value.toIntOrNull() ?: 0
           name.equals("Authorization", ignoreCase = true) -> authorization = value
           name.equals("Content-Type", ignoreCase = true) -> contentType = value
         }
@@ -86,7 +88,8 @@ class AdminApiTransportTest {
               path = parts[1],
               authorization = authorization,
               contentType = contentType,
-              body = String(body, StandardCharsets.UTF_8))
+              body = String(body, StandardCharsets.UTF_8),
+          )
 
       val payload = responseBody.toByteArray(StandardCharsets.UTF_8)
       val head =
@@ -183,7 +186,8 @@ class AdminApiTransportTest {
         """{"code":2,"message":"setting policy: parsing policy: parsing HuJSON: hujson: line 1, column 3: invalid literal: this","details":[]}"""
     assertEquals(
         "setting policy: parsing policy: parsing HuJSON: hujson: line 1, column 3: invalid literal: this",
-        AdminApi.errorSummary(body))
+        AdminApi.errorSummary(body),
+    )
     assertEquals("Bad Gateway", AdminApi.errorSummary("Bad Gateway"))
     assertEquals("", AdminApi.errorSummary("  "))
   }
@@ -194,7 +198,8 @@ class AdminApiTransportTest {
     // the server should receive, rather than pinning kotlinx's escaping details.
     val huJson = "{\n  // family\n  \"acls\": [\n    { \"action\": \"accept\" }\n  ]\n}"
     val body = AdminApi.policyRequestBody(huJson)
-    val policyField = Json.parseToJsonElement(body).jsonObject.getValue("policy").jsonPrimitive.content
+    val policyField =
+        Json.parseToJsonElement(body).jsonObject.getValue("policy").jsonPrimitive.content
     assertEquals(huJson, policyField)
 
     server.responseBody = """{"policy":"{}","updatedAt":"2026-09-22T06:43:19Z"}"""
@@ -214,5 +219,24 @@ class AdminApiTransportTest {
     assertEquals("DELETE", request.method)
     assertEquals("/api/v1/node/2", request.path)
     assertEquals("", request.body)
+  }
+
+  @Test
+  fun sessionsKeepTheirServerAndCredentials() {
+    TestServer().use { other ->
+      server.responseBody = "{\"nodes\":[]}"
+      other.responseBody = "{\"nodes\":[]}"
+      val first = AdminApi.Session(base(), "first-key")
+      val second = AdminApi.Session("http://127.0.0.1:${other.port}", "second-key")
+      first.nodes()
+      second.nodes()
+      first.deleteNode("7")
+      assertEquals(
+          listOf("Bearer first-key", "Bearer first-key"),
+          server.requests.map { it.authorization },
+      )
+      assertEquals("Bearer second-key", other.requests.single().authorization)
+      assertEquals("/api/v1/node/7", server.requests.last().path)
+    }
   }
 }

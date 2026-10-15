@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -39,7 +38,7 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
   val filteredApps: StateFlow<List<InstalledApp>> =
       combine(allInstalledApps, searchQuery, showSystemApps) { apps, query, showSystem ->
             apps.filter { app ->
-              (app.isSystemApp == showSystem) &&
+              (showSystem || !app.isSystemApp) &&
                   (query.isEmpty() ||
                       app.name.contains(query, ignoreCase = true) ||
                       app.packageName.contains(query, ignoreCase = true))
@@ -73,7 +72,8 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
               }
             }
             .intersect(allInstalledApps.value.map { it.packageName }.toSet())
-            .toList())
+            .toList()
+    )
   }
 
   fun performSelectionSwitch() {
@@ -95,7 +95,9 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
 
   fun selectAll() {
     val currentFiltered = filteredApps.value.map { it.packageName }
-    selectedPackageNames.set((selectedPackageNames.value.toSet() + currentFiltered.toSet()).toList())
+    selectedPackageNames.set(
+        (selectedPackageNames.value.toSet() + currentFiltered.toSet()).toList()
+    )
     debounceSave()
   }
 

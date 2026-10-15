@@ -56,7 +56,7 @@ type App struct {
 
 	localAPIHandler http.Handler
 	backend         *ipnlocal.LocalBackend
-	ready           sync.WaitGroup
+	ready           *startupGate
 	backendMu       sync.Mutex
 
 	// logger is the logtail logger whose uploads follow the user's
@@ -168,7 +168,7 @@ func (a *App) runBackend(ctx context.Context, hardwareAttestation bool) error {
 	h.PermitWrite = true
 	a.localAPIHandler = h
 
-	a.ready.Done()
+	a.ready.complete(nil)
 
 	// Contrary to the documentation for VpnService.Builder.addDnsServer,
 	// ChromeOS doesn't fall back to the underlying network nameservers if
@@ -379,12 +379,17 @@ func (a *App) newBackend(dataDir string, appCtx AppContext, store *stateStore,
 	b.backend = lb
 	b.sys = sys
 	go func() {
-		err := lb.Start(ipn.Options{})
+		var err error
+		defer func() {
+			if p := recover(); p != nil {
+				err = fmt.Errorf("LocalBackend startup panic: %v", p)
+			}
+			a.ready.complete(err)
+		}()
+		err = lb.Start(ipn.Options{})
 		if err != nil {
 			log.Printf("Failed to start LocalBackend: %s", err)
-			return
 		}
-		a.ready.Done()
 	}()
 	return b, nil
 }

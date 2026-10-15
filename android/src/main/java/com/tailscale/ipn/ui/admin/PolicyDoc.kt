@@ -27,13 +27,13 @@ object PolicyDoc {
           "nodeAttrs",
           "postures",
           "tests",
-          "sshTests")
+          "sshTests",
+      )
 
   /** Parses huJSON, or null when the text is not a JSON object at all. */
-  fun parse(text: String): JsonObject? =
-      runCatching { Json.parseToJsonElement(stripTrailingCommas(stripComments(text))) }
-          .getOrNull()
-          .let { it as? JsonObject }
+  fun parse(text: String): JsonObject? = runCatching {
+    Json.parseToJsonElement(stripTrailingCommas(stripComments(text)))
+  }.getOrNull().let { it as? JsonObject }
 
   /** Sections to render: known ones first, then anything else the policy defines. */
   fun sections(policy: JsonObject): List<String> {
@@ -63,17 +63,26 @@ object PolicyDoc {
           if (matches.isNotEmpty()) kept[key] = JsonArray(matches)
         }
         value is JsonObject -> {
-          val matches =
-              value.filterKeys {
-                it.lowercase().contains(needle) ||
-                    value.getValue(it).toString().lowercase().contains(needle)
-              }
+          val matches = value.filterKeys {
+            it.lowercase().contains(needle) ||
+                value.getValue(it).toString().lowercase().contains(needle)
+          }
           if (matches.isNotEmpty()) kept[key] = JsonObject(matches)
         }
         value.toString().lowercase().contains(needle) -> kept[key] = value
       }
     }
     return JsonObject(kept)
+  }
+
+  /** Original indices survive filtering so edits still address the intended rule. */
+  fun matchingIndices(section: String, values: JsonArray, query: String): List<Int> {
+    val needle = query.trim().lowercase()
+    return values.indices.filter {
+      needle.isEmpty() ||
+          section.lowercase().contains(needle) ||
+          values[it].toString().lowercase().contains(needle)
+    }
   }
 
   /** Total entries a policy holds, for the "N of M" hint while searching. */

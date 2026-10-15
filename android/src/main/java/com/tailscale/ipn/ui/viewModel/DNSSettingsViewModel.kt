@@ -17,16 +17,18 @@ import com.tailscale.ipn.ui.model.Tailcfg
 import com.tailscale.ipn.ui.notifier.Notifier
 import com.tailscale.ipn.ui.theme.off
 import com.tailscale.ipn.ui.theme.success
+import com.tailscale.ipn.ui.util.DNSConfigMonitor
 import com.tailscale.ipn.ui.util.set
 import com.tailscale.ipn.util.TSLog
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 class DNSSettingsViewModelFactory : ViewModelProvider.Factory {
   @Suppress("UNCHECKED_CAST")
@@ -56,31 +58,27 @@ class DNSSettingsViewModel : IpnViewModel() {
             } ?: run { enablementState.set(DNSEnablementState.NOT_RUNNING) }
           }
     }
-
-    // NotifyInitialStatus intentionally omits the full network map, including DNS. Fetch the
-    // canonical DNS config from LocalAPI instead so resolvers, search domains, and split-DNS
-    // routes remain visible after the notifier migrated away from Notify.NetMap.
-    viewModelScope.launch {
-      Notifier.netmap
-          .map { netmap -> netmap?.let { it.SelfNode.StableID to it.Domain } }
-          .filterNotNull()
-          .distinctUntilChanged()
-          .collect {
-            dnsConfig.set(null)
-            refreshDNSConfig()
-          }
-    }
-
-    refreshDNSConfig()
   }
 
-  private fun refreshDNSConfig() {
-    Client(viewModelScope).dnsConfig { result ->
-      result
-          .onSuccess { dnsConfig.set(it) }
-          .onFailure { TSLog.d("DNSSettingsViewModel", "Failed to fetch DNS config: $it") }
-    }
-  }
+  private val configMonitor =
+      DNSConfigMonitor(
+          scope = viewModelScope,
+          identity =
+              Notifier.netmap.map { netmap -> netmap?.let { it.SelfNode.StableID to it.Domain } },
+          fetch = {
+            suspendCancellableCoroutine { continuation ->
+              Client(CoroutineScope(continuation.context)).dnsConfig { result ->
+                if (continuation.isActive) continuation.resume(result)
+              }
+            }
+          },
+          onConfig = { dnsConfig.set(it) },
+          onFailure = { TSLog.d("DNSSettingsViewModel", "Failed to fetch DNS config: $it") },
+      )
+
+  fun startRefreshing() = configMonitor.start()
+
+  fun stopRefreshing() = configMonitor.stop()
 
   fun toggleCorpDNS(callback: (Result<Ipn.Prefs>) -> Unit) {
     val prefs =
