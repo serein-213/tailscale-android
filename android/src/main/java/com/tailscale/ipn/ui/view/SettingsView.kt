@@ -191,6 +191,11 @@ fun SettingsView(
           }
 
           Setting.Text(
+              R.string.bug_report,
+              hideable = true,
+              onClick = settingsNav.onNavigateToBugReport)
+
+          Setting.Text(
               R.string.about_tailscale,
               subtitle = "${stringResource(id = R.string.version)} ${AppVersion.Short()}",
               hideable = false,
