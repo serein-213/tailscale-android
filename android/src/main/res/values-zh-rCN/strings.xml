@@ -452,8 +452,6 @@
     <string name="admin_refresh">刷新</string>
     <string name="admin_policy_updated">更新于 %1$s</string>
     <string name="admin_keys_short">密钥</string>
-    <string name="policy_view_structured">结构化</string>
-    <string name="policy_view_raw">原文</string>
     <string name="policy_parse_failed">无法解析为 JSON，已按原文显示</string>
     <string name="policy_empty">策略为空</string>
     <string name="policy_items">%1$d 项</string>
