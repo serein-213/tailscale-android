@@ -78,7 +78,7 @@ import kotlinx.coroutines.flow.emptyFlow
 fun SettingsView(
     settingsNav: SettingsNav,
     viewModel: SettingsViewModel = viewModel(),
-    appViewModel: AppViewModel = viewModel()
+    appViewModel: AppViewModel = viewModel(),
 ) {
   val handler = LocalUriHandler.current
 
@@ -220,17 +220,20 @@ fun SettingsView(
               onClick = {
                 showDisableLoggingDialog = false
                 viewModel.toggleIsClientRemoteLoggingEnabled()
-              }) {
-                Text(
-                    stringResource(R.string.client_remote_logging_disable_confirm_button),
-                    color = MaterialTheme.colorScheme.error)
               }
+          ) {
+            Text(
+                stringResource(R.string.client_remote_logging_disable_confirm_button),
+                color = MaterialTheme.colorScheme.error,
+            )
+          }
         },
         dismissButton = {
           TextButton(onClick = { showDisableLoggingDialog = false }) {
             Text(stringResource(R.string.cancel))
           }
-        })
+        },
+    )
   }
 }
 
@@ -366,7 +369,8 @@ object Setting {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
               }
             },
         trailingContent = {
@@ -388,9 +392,11 @@ fun AdminTextView(onNavigateToAdminConsole: () -> Unit, onNavigateToSettings: ()
         style =
             SpanStyle(
                 color = MaterialTheme.colorScheme.link,
-                textDecoration = TextDecoration.Underline)) {
-          append(stringResource(id = R.string.settings_admin_link))
-        }
+                textDecoration = TextDecoration.Underline,
+            )
+    ) {
+      append(stringResource(id = R.string.settings_admin_link))
+    }
   }
 
   val style =

@@ -55,7 +55,8 @@ fun PeerDetails(
     model: PeerDetailsViewModel =
         viewModel(
             factory =
-                PeerDetailsViewModelFactory(nodeId, LocalContext.current.filesDir, pingViewModel))
+                PeerDetailsViewModelFactory(nodeId, LocalContext.current.filesDir, pingViewModel)
+        ),
 ) {
   val isPinging by model.isPinging.collectAsState()
 
@@ -69,30 +70,50 @@ fun PeerDetails(
                     Text(
                         text = node.displayName,
                         style = MaterialTheme.typography.titleMedium.short,
-                        color = MaterialTheme.colorScheme.onSurface)
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                       Box(
                           modifier =
                               Modifier.size(8.dp)
                                   .background(
                                       color = node.connectedColor(netmap),
-                                      shape = RoundedCornerShape(percent = 50))) {}
+                                      shape = RoundedCornerShape(percent = 50),
+                                  )
+                      ) {}
                       Spacer(modifier = Modifier.size(8.dp))
                       Text(
                           text = stringResource(id = node.connectedStrRes(netmap)),
                           style = MaterialTheme.typography.bodyMedium.short,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant)
+                          color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      )
                     }
                   }
                 },
                 actions = {
                   IconButton(onClick = { model.startPing() }) {
                     Icon(
-                        painter = painterResource(R.drawable.timer),
-                        contentDescription = "Ping device")
+                        painter = painterResource(R.drawable.sensors_24),
+                        contentDescription = "Ping device",
+                    )
+                  }
+
+                  val favorites by model.favorites.collectAsState()
+                  val isWriting by model.isWritingFavorites.collectAsState()
+                  val isPinned = favorites?.isFavoriteDevice(node.StableID) == true
+
+                  IconButton(enabled = !isWriting, onClick = { model.togglePin() }) {
+                    Icon(
+                        painterResource(if (isPinned) R.drawable.unpin_24 else R.drawable.pin_24),
+                        contentDescription =
+                            stringResource(
+                                if (isPinned) R.string.unpin_device else R.string.pin_device
+                            ),
+                    )
                   }
                 },
-                onBack = onNavigateBack)
+                onBack = onNavigateBack,
+            )
           },
       ) { innerPadding ->
         LazyColumn(
@@ -156,7 +177,8 @@ fun AddressRow(address: String, type: String) {
         if (!isAndroidTV()) {
           Icon(painter = painterResource(id = R.drawable.clipboard), null)
         }
-      })
+      },
+  )
 }
 
 @Composable
@@ -164,7 +186,8 @@ fun ValueRow(title: String, value: String) {
   ListItem(
       colors = MaterialTheme.colorScheme.listItem,
       headlineContent = { Text(text = title) },
-      supportingContent = { Text(text = value) })
+      supportingContent = { Text(text = value) },
+  )
 }
 
 @Composable

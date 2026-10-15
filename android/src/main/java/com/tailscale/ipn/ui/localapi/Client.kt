@@ -7,6 +7,8 @@ import android.content.Context
 import com.tailscale.ipn.App
 import com.tailscale.ipn.ui.model.BugReportID
 import com.tailscale.ipn.ui.model.Errors
+import com.tailscale.ipn.ui.model.Favorites
+import com.tailscale.ipn.ui.model.FavoritesRequest
 import com.tailscale.ipn.ui.model.Ipn
 import com.tailscale.ipn.ui.model.IpnLocal
 import com.tailscale.ipn.ui.model.IpnState
@@ -50,6 +52,7 @@ private object Endpoint {
   const val FILE_PUT = "file-put"
   const val TAILFS_SERVER_ADDRESS = "tailfs/fileserver-address"
   const val ENABLE_EXIT_NODE = "set-use-exit-node-enabled"
+  const val FAVORITES = "pins"
 }
 
 typealias StatusResponseHandler = (Result<IpnState.Status>) -> Unit
@@ -129,14 +132,14 @@ class Client(private val scope: CoroutineScope) {
 
   fun deleteProfile(
       profile: IpnLocal.LoginProfile,
-      responseHandler: (Result<String>) -> Unit = {}
+      responseHandler: (Result<String>) -> Unit = {},
   ) {
     return delete(Endpoint.PROFILES + profile.ID, responseHandler = responseHandler)
   }
 
   fun switchProfile(
       profile: IpnLocal.LoginProfile,
-      responseHandler: (Result<String>) -> Unit = {}
+      responseHandler: (Result<String>) -> Unit = {},
   ) {
     return post(Endpoint.PROFILES + profile.ID, responseHandler = responseHandler)
   }
@@ -161,7 +164,7 @@ class Client(private val scope: CoroutineScope) {
       context: Context,
       peerId: StableNodeID,
       files: Collection<Ipn.OutgoingFile>,
-      responseHandler: (Result<String>) -> Unit
+      responseHandler: (Result<String>) -> Unit,
   ) {
     val manifest = Json.encodeToString(files)
     val manifestPart = FilePart()
@@ -182,7 +185,8 @@ class Client(private val scope: CoroutineScope) {
             part.contentLength = file.DeclaredSize
             part.body = InputStreamAdapter(stream)
             part
-          })
+          }
+      )
     } catch (e: Exception) {
       parts.forEach { it.body.close() }
       TSLog.e(TAG, "Error creating file upload body: $e")
@@ -197,10 +201,21 @@ class Client(private val scope: CoroutineScope) {
     )
   }
 
+  // Favorites
+
+  fun getFavorites(responseHandler: (Result<Favorites>) -> Unit) {
+    get(Endpoint.FAVORITES, responseHandler = responseHandler)
+  }
+
+  fun setFavorites(favorites: FavoritesRequest, responseHandler: (Result<Favorites>) -> Unit) {
+    val body = Json.encodeToString(favorites).toByteArray()
+    return post(Endpoint.FAVORITES, body, responseHandler = responseHandler)
+  }
+
   private inline fun <reified T> get(
       path: String,
       body: ByteArray? = null,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
@@ -208,14 +223,15 @@ class Client(private val scope: CoroutineScope) {
             path = path,
             body = body,
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 
   private inline fun <reified T> put(
       path: String,
       body: ByteArray? = null,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
@@ -223,7 +239,8 @@ class Client(private val scope: CoroutineScope) {
             path = path,
             body = body,
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 
@@ -231,7 +248,7 @@ class Client(private val scope: CoroutineScope) {
       path: String,
       body: ByteArray? = null,
       timeoutMillis: Long = 30000,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
@@ -240,14 +257,15 @@ class Client(private val scope: CoroutineScope) {
             body = body,
             timeoutMillis = timeoutMillis,
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 
   private inline fun <reified T> postMultipart(
       path: String,
       parts: FileParts,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
@@ -256,14 +274,15 @@ class Client(private val scope: CoroutineScope) {
             parts = parts,
             timeoutMillis = 24 * 60 * 60 * 1000, // 24 hours
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 
   private inline fun <reified T> patch(
       path: String,
       body: ByteArray? = null,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
@@ -271,20 +290,22 @@ class Client(private val scope: CoroutineScope) {
             path = path,
             body = body,
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 
   private inline fun <reified T> delete(
       path: String,
-      noinline responseHandler: (Result<T>) -> Unit
+      noinline responseHandler: (Result<T>) -> Unit,
   ) {
     Request(
             scope = scope,
             method = "DELETE",
             path = path,
             responseType = typeOf<T>(),
-            responseHandler = responseHandler)
+            responseHandler = responseHandler,
+        )
         .execute()
   }
 }
@@ -297,7 +318,7 @@ class Request<T>(
     private val parts: FileParts? = null,
     private val timeoutMillis: Long = 30000,
     private val responseType: KType,
-    private val responseHandler: (Result<T>) -> Unit
+    private val responseHandler: (Result<T>) -> Unit,
 ) {
   private val fullPath = "/localapi/v0/$path"
 
@@ -320,13 +341,20 @@ class Request<T>(
       TSLog.d(TAG, "Executing request:${method}:${fullPath} on app $app")
       try {
         val resp =
-            if (parts != null) app.callLocalAPIMultipart(timeoutMillis, method, fullPath, parts)
+            if (parts != null)
+                app.callLocalAPIMultipart(
+                    timeoutMillis,
+                    method,
+                    fullPath,
+                    parts,
+                )
             else
                 app.callLocalAPI(
                     timeoutMillis,
                     method,
                     fullPath,
-                    body?.let { InputStreamAdapter(it.inputStream()) })
+                    body?.let { InputStreamAdapter(it.inputStream()) },
+                )
         // TODO: use the streaming body for performance
         // An empty body is a perfectly valid response and indicates success
         val bodyResult = resp.bodyBytes()
@@ -345,8 +373,10 @@ class Request<T>(
                   try {
                     Result.success(
                         jsonDecoder.decodeFromStream(
-                            Json.serializersModule.serializer(responseType), respData.inputStream())
-                            as T)
+                            Json.serializersModule.serializer(responseType),
+                            respData.inputStream(),
+                        ) as T
+                    )
                   } catch (t: Throwable) {
                     // If we couldn't parse the response body, assume it's an error response
                     try {
@@ -360,7 +390,8 @@ class Request<T>(
             }
         if (resp.statusCode() >= 400) {
           throw Exception(
-              "Request failed with status ${resp.statusCode()}: ${respData.toString(Charset.defaultCharset())}")
+              "Request failed with status ${resp.statusCode()}: ${respData.toString(Charset.defaultCharset())}"
+          )
         }
         // The response handler will invoked internally by the request parser
         scope.launch { responseHandler(response) }

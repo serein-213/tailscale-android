@@ -10,8 +10,8 @@ import com.tailscale.ipn.R
 
 // Convenience wrapper for passing formatted strings to Composables
 class ComposableStringFormatter(
-    @StringRes val stringRes: Int = R.string.template,
-    private vararg val params: Any
+    @param:StringRes val stringRes: Int = R.string.template,
+    private vararg val params: Any,
 ) {
 
   // Convenience constructor for passing a non-formatted string directly

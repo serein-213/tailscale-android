@@ -23,7 +23,7 @@ class TailnetLockSetupViewModelFactory : ViewModelProvider.Factory {
   }
 }
 
-data class StatusItem(@StringRes val title: Int, @DrawableRes val icon: Int)
+data class StatusItem(@param:StringRes val title: Int, @param:DrawableRes val icon: Int)
 
 class TailnetLockSetupViewModel : IpnViewModel() {
 
@@ -48,23 +48,29 @@ class TailnetLockSetupViewModel : IpnViewModel() {
         items.add(StatusItem(title = R.string.tailnet_lock_enabled, icon = R.drawable.check_circle))
       } else {
         items.add(
-            StatusItem(title = R.string.tailnet_lock_disabled, icon = R.drawable.xmark_circle))
+            StatusItem(title = R.string.tailnet_lock_disabled, icon = R.drawable.xmark_circle)
+        )
       }
 
       if (status.NodeKeySigned == true) {
         items.add(
-            StatusItem(title = R.string.this_node_has_been_signed, icon = R.drawable.check_circle))
+            StatusItem(title = R.string.this_node_has_been_signed, icon = R.drawable.check_circle)
+        )
       } else {
         items.add(
             StatusItem(
-                title = R.string.this_node_has_not_been_signed, icon = R.drawable.xmark_circle))
+                title = R.string.this_node_has_not_been_signed,
+                icon = R.drawable.xmark_circle,
+            )
+        )
       }
 
       if (status.IsPublicKeyTrusted()) {
         items.add(StatusItem(title = R.string.this_node_is_trusted, icon = R.drawable.check_circle))
       } else {
         items.add(
-            StatusItem(title = R.string.this_node_is_not_trusted, icon = R.drawable.xmark_circle))
+            StatusItem(title = R.string.this_node_is_not_trusted, icon = R.drawable.xmark_circle)
+        )
       }
 
       return items

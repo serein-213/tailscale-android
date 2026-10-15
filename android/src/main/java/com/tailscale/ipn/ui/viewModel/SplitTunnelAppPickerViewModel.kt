@@ -123,10 +123,9 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
 
   private fun debounceSave() {
     saveJob?.cancel()
-    saveJob =
-        viewModelScope.launch {
-          delay(500) // Wait to batch multiple rapid updates
-          App.get().updateUserSelectedPackages(selectedPackageNames.value)
-        }
+    saveJob = viewModelScope.launch {
+      delay(500) // Wait to batch multiple rapid updates
+      App.get().updateUserSelectedPackages(selectedPackageNames.value)
+    }
   }
 }

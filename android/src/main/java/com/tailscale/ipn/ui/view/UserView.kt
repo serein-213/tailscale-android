@@ -35,7 +35,7 @@ enum class UserActionState {
   CURRENT,
   SWITCHING,
   NAV,
-  NONE
+  NONE,
 }
 
 @Composable
@@ -58,7 +58,8 @@ fun UserView(
                 text = profile.UserProfile.LoginName,
                 style = MaterialTheme.typography.titleMedium.short,
                 minFontSize = MaterialTheme.typography.minTextSize,
-                overflow = TextOverflow.Ellipsis)
+                overflow = TextOverflow.Ellipsis,
+            )
           },
           supportingContent = {
             Column {
@@ -78,7 +79,8 @@ fun UserView(
                     text = hostname,
                     style = MaterialTheme.typography.bodyMedium.short,
                     minFontSize = MaterialTheme.typography.minTextSize,
-                    overflow = TextOverflow.Ellipsis)
+                    overflow = TextOverflow.Ellipsis,
+                )
               }
             }
           },
@@ -88,10 +90,14 @@ fun UserView(
               UserActionState.SWITCHING -> SimpleActivityIndicator(size = 26)
               UserActionState.NAV ->
                   Icon(
-                      Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.offset(x = 6.dp))
+                      Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                      null,
+                      Modifier.offset(x = 6.dp),
+                  )
               UserActionState.NONE -> Unit
             }
-          })
+          },
+      )
     }
         ?: run {
           ListItem(
@@ -100,8 +106,10 @@ fun UserView(
               headlineContent = {
                 Text(
                     text = stringResource(id = R.string.accounts),
-                    style = MaterialTheme.typography.titleMedium)
-              })
+                    style = MaterialTheme.typography.titleMedium,
+                )
+              },
+          )
         }
   }
 }

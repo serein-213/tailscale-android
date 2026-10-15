@@ -54,7 +54,7 @@ fun TaildropBannerView(viewModel: PendingTaildropViewModel) {
   if (items.isEmpty()) return
 
   val onlyItem = items.singleOrNull()
-  val swipeDismissable = onlyItem is PendingTaildropViewModel.PendingTaildropItem.InlineShareItem
+  val inlineShareItem = onlyItem as? PendingTaildropViewModel.PendingTaildropItem.InlineShareItem
 
   val density = LocalDensity.current
   val dismissThresholdPx = with(density) { 60.dp.toPx() }
@@ -75,8 +75,8 @@ fun TaildropBannerView(viewModel: PendingTaildropViewModel) {
               .padding(horizontal = 16.dp, vertical = 8.dp)
               .offset { IntOffset(animatedOffset.toInt(), 0) }
               .alpha(opacity)
-              .pointerInput(swipeDismissable, onlyItem?.id) {
-                if (!swipeDismissable || onlyItem == null) return@pointerInput
+              .pointerInput(inlineShareItem?.id) {
+                if (inlineShareItem == null) return@pointerInput
                 detectHorizontalDragGestures(
                     onDragEnd = {
                       dragOffsetPx =
@@ -86,7 +86,8 @@ fun TaildropBannerView(viewModel: PendingTaildropViewModel) {
                             else -> 0f
                           }
                     },
-                    onHorizontalDrag = { _, dragAmount -> dragOffsetPx += dragAmount })
+                    onHorizontalDrag = { _, dragAmount -> dragOffsetPx += dragAmount },
+                )
               },
       shape = RoundedCornerShape(10.dp),
       color = MaterialTheme.colorScheme.warning,
@@ -102,7 +103,8 @@ fun TaildropBannerView(viewModel: PendingTaildropViewModel) {
       Icon(
           painter = painterResource(id = iconFor(items)),
           contentDescription = null,
-          modifier = Modifier.size(28.dp))
+          modifier = Modifier.size(28.dp),
+      )
       Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
         Text(
             text = titleFor(items).uppercase(),
@@ -123,10 +125,10 @@ fun TaildropBannerView(viewModel: PendingTaildropViewModel) {
     }
   }
 
-  LaunchedEffect(dragOffsetPx, onlyItem?.id) {
-    if (swipeDismissable && onlyItem != null && abs(dragOffsetPx) >= flingTriggerPx) {
+  LaunchedEffect(dragOffsetPx, inlineShareItem?.id) {
+    if (inlineShareItem != null && abs(dragOffsetPx) >= flingTriggerPx) {
       delay(120)
-      viewModel.dismiss(context, onlyItem)
+      viewModel.dismiss(context, inlineShareItem)
       dragOffsetPx = 0f
     }
   }

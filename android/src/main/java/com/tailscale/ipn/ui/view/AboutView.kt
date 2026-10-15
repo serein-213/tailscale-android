@@ -73,75 +73,81 @@ fun AboutView(backToSettings: BackNavigation) {
             Modifier.fillMaxWidth()
                 .fillMaxHeight()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())) {
-          TailscaleLogoView(
-              usesOnBackgroundColors = true,
-              modifier =
-                  Modifier.width(100.dp)
-                      .height(100.dp)
-                      .clip(RoundedCornerShape(50))
-                      .background(MaterialTheme.colorScheme.logoBackground)
-                      .padding(25.dp))
+                .verticalScroll(rememberScrollState()),
+    ) {
+      TailscaleLogoView(
+          usesOnBackgroundColors = true,
+          modifier =
+              Modifier.width(100.dp)
+                  .height(100.dp)
+                  .clip(RoundedCornerShape(50))
+                  .background(MaterialTheme.colorScheme.logoBackground)
+                  .padding(25.dp),
+      )
 
-          Column(
-              verticalArrangement =
-                  Arrangement.spacedBy(space = 2.dp, alignment = Alignment.CenterVertically),
-              horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    stringResource(R.string.about_view_title),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = MaterialTheme.typography.titleLarge.fontSize)
-                Text(
-                    modifier =
-                        Modifier.clickable {
-                          // When users tap on the version number, the extended version string
-                          // (including commit hashes) is copied to the clipboard.
-                          // This may be useful for debugging purposes...
-                          localClipboardManager.setText(AnnotatedString(BuildConfig.VERSION_NAME))
-                        },
-                    // ... but we always display the short version in the UI to avoid user
-                    // confusion.
-                    text = "${stringResource(R.string.version)} ${AppVersion.Short()}",
-                    fontWeight = MaterialTheme.typography.bodyMedium.fontWeight,
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize)
-              }
+      Column(
+          verticalArrangement =
+              Arrangement.spacedBy(space = 2.dp, alignment = Alignment.CenterVertically),
+          horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        Text(
+            stringResource(R.string.about_view_title),
+            fontWeight = FontWeight.SemiBold,
+            fontSize = MaterialTheme.typography.titleLarge.fontSize,
+        )
+        Text(
+            modifier =
+                Modifier.clickable {
+                  // When users tap on the version number, the extended version string
+                  // (including commit hashes) is copied to the clipboard.
+                  // This may be useful for debugging purposes...
+                  localClipboardManager.setText(AnnotatedString(BuildConfig.VERSION_NAME))
+                },
+            // ... but we always display the short version in the UI to avoid user
+            // confusion.
+            text = "${stringResource(R.string.version)} ${AppVersion.Short()}",
+            fontWeight = MaterialTheme.typography.bodyMedium.fontWeight,
+            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+        )
+      }
 
-          TextButton(
-              enabled = !updateChecking,
-              onClick = {
-                updateChecking = true
-                updateScope.launch {
-                  updateState = UpdateChecker.check()
-                  updateChecking = false
-                  showUpdateDialog = true
-                }
-              }) {
-                Text(
-                    when {
-                      updateChecking -> stringResource(R.string.update_checking)
-                      updateState is UpdateChecker.Result.Available ->
-                          stringResource(
-                              R.string.update_available_subtitle,
-                              (updateState as UpdateChecker.Result.Available).release.tag)
-                      else -> stringResource(R.string.check_for_updates)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.link,
-                    textDecoration = TextDecoration.Underline)
-              }
-
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            OpenURLButton(stringResource(R.string.acknowledgements), Links.LICENSES_URL)
-            OpenURLButton(stringResource(R.string.privacy_policy), Links.PRIVACY_POLICY_URL)
-            OpenURLButton(stringResource(R.string.terms_of_service), Links.TERMS_URL)
+      TextButton(
+          enabled = !updateChecking,
+          onClick = {
+            updateChecking = true
+            updateScope.launch {
+              updateState = UpdateChecker.check()
+              updateChecking = false
+              showUpdateDialog = true
+            }
+          }) {
+            Text(
+                when {
+                  updateChecking -> stringResource(R.string.update_checking)
+                  updateState is UpdateChecker.Result.Available ->
+                      stringResource(
+                          R.string.update_available_subtitle,
+                          (updateState as UpdateChecker.Result.Available).release.tag)
+                  else -> stringResource(R.string.check_for_updates)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.link,
+                textDecoration = TextDecoration.Underline)
           }
 
-          Text(
-              stringResource(R.string.about_view_footnotes),
-              fontWeight = FontWeight.Normal,
-              fontSize = MaterialTheme.typography.labelMedium.fontSize,
-              textAlign = TextAlign.Center)
-        }
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        OpenURLButton(stringResource(R.string.acknowledgements), Links.LICENSES_URL)
+        OpenURLButton(stringResource(R.string.privacy_policy), Links.PRIVACY_POLICY_URL)
+        OpenURLButton(stringResource(R.string.terms_of_service), Links.TERMS_URL)
+      }
+
+      Text(
+          stringResource(R.string.about_view_footnotes),
+          fontWeight = FontWeight.Normal,
+          fontSize = MaterialTheme.typography.labelMedium.fontSize,
+          textAlign = TextAlign.Center,
+      )
+    }
   }
 
   val checkedState = updateState

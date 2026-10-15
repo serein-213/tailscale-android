@@ -27,7 +27,7 @@ class Tailcfg {
       var UrgentSecurityUpdate: Boolean? = null,
       var Notify: Boolean? = null,
       var NotifyURL: String? = null,
-      var NotifyText: String? = null
+      var NotifyText: String? = null,
   )
 
   @Serializable
@@ -85,7 +85,7 @@ class Tailcfg {
       var CapMap: Map<String, JsonElement?>? = null,
       var Tags: List<String>? = null,
       var ComputedName: String? = null,
-      var ComputedNameWithHost: String? = null
+      var ComputedNameWithHost: String? = null,
   ) {
     val isAdmin: Boolean
       get() =
@@ -101,6 +101,9 @@ class Tailcfg {
 
     val primaryIPv6Address: String?
       get() = displayAddresses.firstOrNull { it.type == DisplayAddress.addrType.V6 }?.address
+
+    val magicDNSAddress: String?
+      get() = displayAddresses.firstOrNull { it.type == DisplayAddress.addrType.MagicDNS }?.address
 
     // isExitNode reproduces the Go logic in local.go peerStatusFromNode
     val isExitNode: Boolean =
@@ -119,10 +122,12 @@ class Tailcfg {
 
     val exitNodeName: String
       get() {
-        if (isMullvadNode &&
-            Hostinfo.Location?.Country != null &&
-            Hostinfo.Location?.City != null &&
-            Hostinfo.Location?.CountryCode != null) {
+        if (
+            isMullvadNode &&
+                Hostinfo.Location?.Country != null &&
+                Hostinfo.Location?.City != null &&
+                Hostinfo.Location?.CountryCode != null
+        ) {
           return "${Hostinfo.Location!!.CountryCode!!.flag()} ${Hostinfo.Location!!.Country!!}: ${Hostinfo.Location!!.City!!}"
         }
         return displayName
@@ -151,7 +156,7 @@ class Tailcfg {
 
     val displayAddresses: List<DisplayAddress>
       get() {
-        var addresses = mutableListOf<DisplayAddress>()
+        val addresses = mutableListOf<DisplayAddress>()
         addresses.add(DisplayAddress(nameWithoutTrailingDot))
         Addresses?.let { addresses.addAll(it.map { addr -> DisplayAddress(addr) }) }
         return addresses
@@ -170,13 +175,11 @@ class Tailcfg {
               PeerSettingInfo(R.string.version, ComposableStringFormatter(Hostinfo.IPNVersion!!)),
           )
         }
-        if (keyDoesNotExpire) {
-          result.add(
-              PeerSettingInfo(
-                  R.string.key_expiry, ComposableStringFormatter(R.string.deviceKeyNeverExpires)))
-        } else {
-          result.add(PeerSettingInfo(R.string.key_expiry, TimeUtil.keyExpiryFromGoTime(KeyExpiry)))
-        }
+        val settingValue =
+            if (keyDoesNotExpire) ComposableStringFormatter(R.string.deviceKeyNeverExpires)
+            else TimeUtil.keyExpiryFromGoTime(KeyExpiry)
+
+        result.add(PeerSettingInfo(R.string.key_expiry, settingValue))
         return result
       }
 
@@ -196,13 +199,17 @@ class Tailcfg {
   }
 
   @Serializable
-  data class Service(var Proto: String, var Port: Int, var Description: String? = null)
+  data class Service(
+      var Proto: String,
+      var Port: Int,
+      var Description: String? = null,
+  )
 
   @Serializable
   data class NetworkProfile(
       var MagicDNSName: String? = null,
       var DomainName: String? = null,
-      var DisplayName: String? = null
+      var DisplayName: String? = null,
   ) {
     fun tailnetNameForDisplay(): String? {
       return DisplayName?.takeIf { it.isNotEmpty() } ?: DomainName
@@ -215,7 +222,7 @@ class Tailcfg {
       var CountryCode: String? = null,
       var City: String? = null,
       var CityCode: String? = null,
-      var Priority: Int? = null
+      var Priority: Int? = null,
   )
 
   @Serializable
@@ -224,6 +231,6 @@ class Tailcfg {
       var Routes: Map<String, List<DnsType.Resolver>?>? = null,
       var FallbackResolvers: List<DnsType.Resolver>? = null,
       var Domains: List<String>? = null,
-      var Nameservers: List<Addr>? = null
+      var Nameservers: List<Addr>? = null,
   )
 }
