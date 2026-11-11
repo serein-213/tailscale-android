@@ -7,5 +7,8 @@
     <string name="policy_save_diff_legend">+ 新增 · − 删除 · … 已省略未变化的行。替换以删除和新增表示，并非访问规则的语义分析。末尾空行表示结尾换行，␍ 表示回车符。</string>
     <string name="policy_save_diff_broad">改动较大，显示整个替换区间（包括区间内未变化的行）。行数统计表示所显示的替换内容，而非最小差异。</string>
     <string name="policy_save_preflight_notice">保存前，应用会检查服务器策略是否仍与草稿的原始版本一致。Headscale 不支持原子条件更新，检查和保存之间仍可能发生其他修改。</string>
+    <string name="policy_edit_invalid_at">第 %1$d 行第 %2$d 列附近：%3$s</string>
+    <string name="policy_edit_restore_title">用上一版替换当前草稿？</string>
+    <string name="policy_edit_restore_message">未保存的修改会被本应用上次从服务器看到的策略替换。</string>
     <string name="policy_save_conflict">已停止保存：服务器策略在此草稿开始后发生了变化，草稿已保留。请先在原文编辑器中复制草稿，然后取消或放弃修改以载入最新策略，再重新应用您的改动。</string>
 </resources>

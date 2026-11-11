@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.PolicyEdit
@@ -185,9 +189,9 @@ fun PolicyEntrySheet(
             values = src,
             suggestions = suggestions,
             onAdd = { picked ->
-              if (picked !in src) {
-                val next = src + picked
-                if (editor.onEdit(StructuredEdit.SetList(target.srcPath, next))) src = next
+              val next = (src + picked).distinct()
+              if (next != src && editor.onEdit(StructuredEdit.SetList(target.srcPath, next))) {
+                src = next
               }
             },
             onRemove = { item ->
@@ -203,15 +207,14 @@ fun PolicyEntrySheet(
             values = dst,
             suggestions = dstChoices,
             onAdd = { picked ->
-              if (picked !in dst) {
-                val next = dst + picked
-                if (
-                    editor.onEdit(
-                        StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), next)
-                    )
-                ) {
-                  dst = next
-                }
+              val next = (dst + picked).distinct()
+              if (
+                  next != dst &&
+                      editor.onEdit(
+                          StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), next)
+                      )
+              ) {
+                dst = next
               }
             },
             onRemove = { item ->
@@ -233,15 +236,14 @@ fun PolicyEntrySheet(
             values = users,
             suggestions = sshUserSuggestions(editor),
             onAdd = { picked ->
-              if (picked !in users) {
-                val next = users + picked
-                if (
-                    editor.onEdit(
-                        StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), next)
-                    )
-                ) {
-                  users = next
-                }
+              val next = (users + picked).distinct()
+              if (
+                  next != users &&
+                      editor.onEdit(
+                          StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), next)
+                      )
+              ) {
+                users = next
               }
             },
             onRemove = { item ->
@@ -262,8 +264,12 @@ fun PolicyEntrySheet(
             label = stringResource(R.string.policy_edit_value),
             values = listOf(value).filter { it.isNotEmpty() },
             suggestions = suggestions,
+            // A single value: the first pick replaces it, there is nothing to collect.
+            multiple = false,
             onAdd = { picked ->
-              if (editor.onEdit(StructuredEdit.SetValue(target.path, picked))) value = picked
+              picked.firstOrNull()?.let {
+                if (editor.onEdit(StructuredEdit.SetValue(target.path, it))) value = it
+              }
             },
             onRemove = {
               // Clearing a value is not a thing: the entry itself goes.
@@ -312,7 +318,8 @@ private fun ValueEditor(
     label: String,
     values: List<String>,
     suggestions: List<String>,
-    onAdd: (String) -> Unit,
+    multiple: Boolean = true,
+    onAdd: (List<String>) -> Unit,
     onRemove: (String) -> Unit,
 ) {
   var picking by remember { mutableStateOf(false) }
@@ -342,6 +349,7 @@ private fun ValueEditor(
     ValuePickerDialog(
         current = values,
         suggestions = suggestions,
+        multiple = multiple,
         onDismiss = { picking = false },
         onPick = { picked ->
           picking = false
@@ -420,15 +428,23 @@ fun AddEntryDialog(
   )
 }
 
-/** Free text or one of the values the policy already knows about. */
+/**
+ * Free text and/or the values the policy already knows about. With [multiple], several can be
+ * ticked and added in one go: a rule with three sources should not take three trips through here.
+ */
 @Composable
 private fun ValuePickerDialog(
     current: List<String>,
     suggestions: List<String>,
+    multiple: Boolean,
     onDismiss: () -> Unit,
-    onPick: (String) -> Unit,
+    onPick: (List<String>) -> Unit,
 ) {
   var typed by remember { mutableStateOf("") }
+  var ticked by remember { mutableStateOf(emptyList<String>()) }
+  // Typing narrows the list, so a long tailnet is still one or two keystrokes away.
+  val shown = suggestions.filter { it !in current && it.contains(typed.trim(), ignoreCase = true) }
+  val picked = (ticked + typed.trim()).filter { it.isNotEmpty() }.distinct()
   AlertDialog(
       onDismissRequest = onDismiss,
       title = { Text(stringResource(R.string.policy_edit_add_value)) },
@@ -438,28 +454,44 @@ private fun ValuePickerDialog(
               value = typed,
               onValueChange = { typed = it },
               singleLine = true,
+              keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+              keyboardActions =
+                  KeyboardActions(onDone = { if (picked.isNotEmpty()) onPick(picked) }),
               modifier = Modifier.fillMaxWidth(),
               textStyle =
                   MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
           )
           LazyColumn(Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
-            items(suggestions.filterNot { it in current }) { suggestion ->
-              Text(
-                  suggestion,
-                  style = MaterialTheme.typography.bodySmall,
-                  fontFamily = FontFamily.Monospace,
-                  modifier =
-                      Modifier.fillMaxWidth()
-                          .clickable { onPick(suggestion) }
-                          .padding(vertical = 8.dp),
-              )
+            items(shown, key = { it }) { suggestion ->
+              Row(
+                  Modifier.fillMaxWidth().clickable {
+                    if (!multiple) {
+                      onPick(listOf(suggestion))
+                    } else {
+                      ticked =
+                          if (suggestion in ticked) ticked - suggestion else ticked + suggestion
+                    }
+                  },
+                  verticalAlignment = Alignment.CenterVertically,
+              ) {
+                if (multiple) Checkbox(checked = suggestion in ticked, onCheckedChange = null)
+                Text(
+                    suggestion,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                )
+              }
             }
           }
         }
       },
       confirmButton = {
-        TextButton(enabled = typed.isNotBlank(), onClick = { onPick(typed.trim()) }) {
-          Text(stringResource(R.string.policy_edit_add))
+        TextButton(enabled = picked.isNotEmpty(), onClick = { onPick(picked) }) {
+          Text(
+              if (picked.size > 1) "${stringResource(R.string.policy_edit_add)} (${picked.size})"
+              else stringResource(R.string.policy_edit_add)
+          )
         }
       },
       dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },

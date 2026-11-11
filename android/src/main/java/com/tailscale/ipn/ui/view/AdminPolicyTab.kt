@@ -3,6 +3,7 @@
 
 package com.tailscale.ipn.ui.view
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -79,6 +80,8 @@ private val policyRuleSections = setOf("acls", "ssh")
  */
 @Composable
 fun AdminPolicyTab(
+    /** False while this page is only peeking in from a swipe: it must not claim the back key. */
+    active: Boolean = true,
     policyText: String,
     editorState: PolicyEditorState,
     serverId: String,
@@ -103,9 +106,27 @@ fun AdminPolicyTab(
   var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
   var addingTo by remember { mutableStateOf<String?>(null) }
   var confirmDiscard by remember { mutableStateOf(false) }
+  var confirmRestore by remember { mutableStateOf(false) }
   var menuOpen by remember { mutableStateOf(false) }
   var query by remember { mutableStateOf("") }
-  val draftValid = remember(draft) { PolicyDoc.parse(draft) != null }
+  val draftValid = doc != null
+  // Only worked out when the draft is broken: where the parser stopped, in the user's own text.
+  val parseError = remember(draft, doc) { if (doc == null) PolicyDoc.parseError(draft) else null }
+
+  /** Leaving raw editing throws the draft away, so ask first when there is something to lose. */
+  fun cancelEditing() {
+    if (editorState.dirty) confirmDiscard = true else editorState.discardToSource()
+  }
+
+  // Back closes what is open on this tab before it leaves the console.
+  BackHandler(enabled = active && (searching || editing)) {
+    if (searching) {
+      searching = false
+      query = ""
+    } else {
+      cancelEditing()
+    }
+  }
   val filtered = remember(doc, query) { doc?.let { PolicyDoc.filter(it, query) } }
   val matches = remember(filtered) { filtered?.let { PolicyDoc.size(it) } ?: 0 }
   val total = remember(doc) { doc?.let { PolicyDoc.size(it) } ?: 0 }
@@ -214,13 +235,16 @@ fun AdminPolicyTab(
       if (editing) {
         TextButton(
             enabled = backup != null && !saving,
-            onClick = { backup?.let { draft = it } },
+            onClick = {
+              // Overwriting typed edits needs a yes; replacing an untouched draft does not.
+              if (editorState.dirty) confirmRestore = true else backup?.let { draft = it }
+            },
         ) {
           Text(stringResource(R.string.policy_edit_restore))
         }
         TextButton(
             enabled = !saving,
-            onClick = { editorState.discardToSource() },
+            onClick = { cancelEditing() },
         ) {
           Text(stringResource(R.string.policy_edit_cancel))
         }
@@ -376,6 +400,7 @@ fun AdminPolicyTab(
           PolicyEditor(
               draft = draft,
               invalid = !draftValid,
+              parseError = parseError,
               saving = saving,
               onChange = { draft = it },
           )
@@ -418,14 +443,31 @@ fun AdminPolicyTab(
               onEntry = { entryTarget = it },
               onAddEntry = { section ->
                 if (section in policyRuleSections) {
-                  structured.onEdit(
-                      StructuredEdit.AddRule(
-                          section = section,
-                          action = "accept",
-                          src = emptyList(),
-                          dst = emptyList(),
+                  // The new rule lands at the end of its section; open it right away instead of
+                  // leaving an empty rule for the user to scroll down and find.
+                  val index = (doc?.get(section) as? JsonArray)?.size ?: 0
+                  val added =
+                      structured.onEdit(
+                          StructuredEdit.AddRule(
+                              section = section,
+                              action = "accept",
+                              src = emptyList(),
+                              dst = emptyList(),
+                          )
                       )
-                  )
+                  if (added) {
+                    entryTarget =
+                        EntryTarget(
+                            title = "$section #${index + 1}",
+                            path =
+                                listOf(PolicyEdit.Step.Key(section), PolicyEdit.Step.Index(index)),
+                            action = "accept",
+                            src = emptyList(),
+                            dst = emptyList(),
+                            users = if (section == "ssh") listOf("root") else null,
+                            section = section,
+                        )
+                  }
                 } else {
                   addingTo = section
                 }
@@ -486,6 +528,19 @@ fun AdminPolicyTab(
     )
   }
 
+  if (confirmRestore) {
+    ConfirmDialog(
+        title = stringResource(R.string.policy_edit_restore_title),
+        message = stringResource(R.string.policy_edit_restore_message),
+        confirmLabel = stringResource(R.string.policy_edit_restore),
+        onDismiss = { confirmRestore = false },
+        onConfirm = {
+          confirmRestore = false
+          backup?.let { draft = it }
+        },
+    )
+  }
+
   if (confirmDiscard) {
     ConfirmDialog(
         title = stringResource(R.string.policy_edit_discard_title),
@@ -508,6 +563,7 @@ fun AdminPolicyTab(
 private fun PolicyEditor(
     draft: String,
     invalid: Boolean,
+    parseError: PolicyDoc.ParseError?,
     saving: Boolean,
     onChange: (String) -> Unit,
 ) {
@@ -537,6 +593,27 @@ private fun PolicyEditor(
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
       )
+      // "Invalid" alone leaves the user hunting through the whole policy; say where.
+      parseError?.let { error ->
+        Text(
+            if (error.line != null && error.column != null) {
+              stringResource(
+                  R.string.policy_edit_invalid_at,
+                  error.line,
+                  error.column,
+                  error.message,
+              )
+            } else {
+              error.message
+            },
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.error,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+        )
+      }
     }
     if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
   }

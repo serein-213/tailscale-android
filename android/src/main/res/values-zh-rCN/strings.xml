@@ -438,7 +438,7 @@
     <string name="admin_routes">路由审批</string>
     <string name="admin_no_routes">该设备没有对外通告的路由。</string>
     <string name="admin_node_tags">标签</string>
-    <string name="admin_tags_hint">逗号分隔；tag: 前缀会自动补全。</string>
+    <string name="admin_tags_hint">tag: 前缀会自动补全。</string>
     <string name="admin_save">保存</string>
     <string name="admin_policy">访问策略</string>
     <string name="admin_refresh">刷新</string>

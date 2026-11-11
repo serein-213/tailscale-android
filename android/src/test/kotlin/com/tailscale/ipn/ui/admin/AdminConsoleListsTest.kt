@@ -132,4 +132,44 @@ class AdminConsoleListsTest {
     assertEquals(listOf("10.0.1.0/24"), node.pendingRoutes())
     assertEquals(emptyList<String>(), node.copy(availableRoutes = emptyList()).pendingRoutes())
   }
+
+  @Test
+  fun exitRoutesAreApprovedAndRevokedTogether() {
+    val node =
+        AdminApi.HsNode(
+            availableRoutes = listOf("0.0.0.0/0", "::/0", "10.0.0.0/24"),
+            approvedRoutes = listOf("10.0.0.0/24"),
+        )
+    val approved = node.withRouteToggled("0.0.0.0/0")
+    assertEquals(listOf("0.0.0.0/0", "10.0.0.0/24", "::/0"), approved)
+    val exitNode = node.copy(approvedRoutes = approved)
+    assertEquals(true, exitNode.exitRoutesApproved())
+    assertEquals(listOf("10.0.0.0/24"), exitNode.withRouteToggled("::/0"))
+  }
+
+  @Test
+  fun halfApprovedExitNodeIsCompletedNotRevoked() {
+    val node =
+        AdminApi.HsNode(
+            availableRoutes = listOf("0.0.0.0/0", "::/0"),
+            approvedRoutes = listOf("0.0.0.0/0"),
+        )
+    assertEquals(false, node.exitRoutesApproved())
+    assertEquals(listOf("0.0.0.0/0", "::/0"), node.withRouteToggled("0.0.0.0/0"))
+  }
+
+  @Test
+  fun subnetRoutesToggleAloneAndKeepStaleApprovals() {
+    val node =
+        AdminApi.HsNode(
+            availableRoutes = listOf("10.0.0.0/24", "10.0.1.0/24"),
+            approvedRoutes = listOf("10.0.0.0/24", "192.168.0.0/24"),
+        )
+    assertEquals(
+        listOf("10.0.0.0/24", "10.0.1.0/24", "192.168.0.0/24"),
+        node.withRouteToggled("10.0.1.0/24"),
+    )
+    assertEquals(listOf("192.168.0.0/24"), node.withRouteToggled("10.0.0.0/24"))
+    assertEquals(false, node.exitRoutesApproved())
+  }
 }

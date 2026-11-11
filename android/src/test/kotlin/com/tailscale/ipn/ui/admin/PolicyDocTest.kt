@@ -3,13 +3,13 @@
 
 package com.tailscale.ipn.ui.admin
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import kotlinx.serialization.json.JsonArray
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PolicyDocTest {
@@ -34,7 +34,10 @@ class PolicyDocTest {
   @Test
   fun parsesHuJsonWithCommentsAndTrailingCommas() {
     val doc = PolicyDoc.parse(huJson)
-    assertEquals(listOf("groups", "hosts", "acls", "ssh", "tests", "randomizeClientPort"), doc!!.keys.toList())
+    assertEquals(
+        listOf("groups", "hosts", "acls", "ssh", "tests", "randomizeClientPort"),
+        doc!!.keys.toList(),
+    )
     assertEquals(2, doc["acls"]!!.jsonArray.size)
   }
 
@@ -46,16 +49,20 @@ class PolicyDocTest {
     // A comment after a string that contains "//" is still removed.
     assertEquals(
         """{"url": "https://x" }""",
-        PolicyDoc.stripComments("""{"url": "https://x" } // trailing""").trimEnd())
+        PolicyDoc.stripComments("""{"url": "https://x" } // trailing""").trimEnd(),
+    )
   }
 
   @Test
   fun stripsOnlyStructuralTrailingCommas() {
     assertEquals(
         """{"a": [1, 2], "b": "x,y"}""",
-        PolicyDoc.stripTrailingCommas("""{"a": [1, 2], "b": "x,y",}"""))
+        PolicyDoc.stripTrailingCommas("""{"a": [1, 2], "b": "x,y",}"""),
+    )
     assertEquals(
-        """{"a": [1, 2] }""", PolicyDoc.stripTrailingCommas("""{"a": [1, 2,], }"""))
+        """{"a": [1, 2] }""",
+        PolicyDoc.stripTrailingCommas("""{"a": [1, 2,], }"""),
+    )
   }
 
   @Test
@@ -68,7 +75,10 @@ class PolicyDocTest {
   @Test
   fun listsSectionsKnownFirstThenExtras() {
     val doc = PolicyDoc.parse(huJson)!!
-    assertEquals(listOf("acls", "groups", "hosts", "ssh", "tests", "randomizeClientPort"), PolicyDoc.sections(doc))
+    assertEquals(
+        listOf("acls", "groups", "hosts", "ssh", "tests", "randomizeClientPort"),
+        PolicyDoc.sections(doc),
+    )
   }
 
   @Test
@@ -106,7 +116,8 @@ class PolicyDocTest {
             ]
           }
           """
-              .trimIndent())!!
+              .trimIndent()
+      )!!
 
   @Test
   fun filterKeepsOnlyMatchingRules() {
@@ -141,5 +152,40 @@ class PolicyDocTest {
   @Test
   fun filterWithBlankQueryReturnsTheWholePolicy() {
     assertSame(policy, PolicyDoc.filter(policy, "   "))
+  }
+
+  @Test
+  fun parseErrorIsNullForValidHuJson() {
+    assertNull(PolicyDoc.parseError("{ // comment\n \"acls\": [], /* block */ }"))
+  }
+
+  @Test
+  fun parseErrorPointsIntoTheOriginalTextDespiteComments() {
+    val text =
+        "{\n  // a comment that would shift offsets if it were removed\n  \"acls\": [ \"a\" \"b\" ]\n}"
+    val error = requireNotNull(PolicyDoc.parseError(text))
+    assertEquals(3, error.line)
+    assertTrue("column ${error.column}", error.column in 10..20)
+    assertTrue(error.message.isNotBlank())
+  }
+
+  @Test
+  fun parseErrorReportsNonObjectsWithoutAPosition() {
+    val error = requireNotNull(PolicyDoc.parseError("[1, 2]"))
+    assertNull(error.line)
+    assertNull(error.column)
+  }
+
+  @Test
+  fun keepLengthStrippingPreservesOffsetsAndNewlines() {
+    val text = "{ /* a\nb */ \"k\": [1,], // tail\n}"
+    val blanked =
+        PolicyDoc.stripTrailingCommas(
+            PolicyDoc.stripComments(text, keepLength = true),
+            keepLength = true,
+        )
+    assertEquals(text.length, blanked.length)
+    assertEquals(text.indexOf('\n'), blanked.indexOf('\n'))
+    assertEquals(text.indexOf("\"k\""), blanked.indexOf("\"k\""))
   }
 }

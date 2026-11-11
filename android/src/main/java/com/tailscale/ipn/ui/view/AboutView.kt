@@ -23,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +50,10 @@ import com.tailscale.ipn.ui.theme.logoBackground
 import com.tailscale.ipn.ui.util.AppVersion
 import com.tailscale.ipn.ui.util.UpdateChecker
 import com.tailscale.ipn.util.BrowserOpener
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AboutView(backToSettings: BackNavigation) {
@@ -62,6 +66,9 @@ fun AboutView(backToSettings: BackNavigation) {
   var updateState by remember { mutableStateOf<UpdateChecker.Result?>(null) }
   var showUpdateDialog by remember { mutableStateOf(false) }
   var updateErrorMessage by remember { mutableStateOf<String?>(null) }
+  // Whether this screen can still show a dialog when a background download reports back.
+  val onScreen = remember { AtomicBoolean(true) }
+  DisposableEffect(Unit) { onDispose { onScreen.set(false) } }
 
   Scaffold(topBar = { Header(R.string.about_view_header, onBack = backToSettings) }) { innerPadding
     ->
@@ -169,7 +176,16 @@ fun AboutView(backToSettings: BackNavigation) {
                   try {
                     UpdateChecker.downloadAndInstall(context, checkedState.release)
                   } catch (e: Exception) {
-                    updateErrorMessage = e.message ?: e.javaClass.simpleName
+                    val message = e.message ?: e.javaClass.simpleName
+                    if (onScreen.get()) {
+                      updateErrorMessage = message
+                    } else {
+                      // The download outlives this screen; its failure has to as well.
+                      val title = App.get().getString(R.string.update_download_failed_title)
+                      withContext(Dispatchers.Main) {
+                        Toast.makeText(App.get(), "$title: $message", Toast.LENGTH_LONG).show()
+                      }
+                    }
                   }
                 }
               })

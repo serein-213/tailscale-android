@@ -25,4 +25,11 @@
     <string name="admin_key_masked">密钥 #%1$s · ••••••••</string>
     <string name="admin_reveal_secret">显示密钥</string>
     <string name="admin_hide_secret">隐藏密钥</string>
+    <string name="admin_dismiss">关闭</string>
+    <string name="admin_copied">已复制</string>
+    <string name="admin_key_created_title">预授权密钥已创建</string>
+    <string name="admin_key_created_hint">请立即复制。较新版本的 Headscale 只在创建时显示一次完整密钥。</string>
+    <string name="admin_add_tag">添加标签</string>
+    <string name="admin_existing_tags">已有标签</string>
+    <string name="admin_tap_to_copy">点按复制</string>
 </resources>

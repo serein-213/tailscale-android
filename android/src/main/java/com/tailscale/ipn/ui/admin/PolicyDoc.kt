@@ -33,7 +33,50 @@ object PolicyDoc {
   /** Parses huJSON, or null when the text is not a JSON object at all. */
   fun parse(text: String): JsonObject? = runCatching {
     Json.parseToJsonElement(stripTrailingCommas(stripComments(text)))
-  }.getOrNull().let { it as? JsonObject }
+  }
+      .getOrNull()
+      .let { it as? JsonObject }
+
+  /** Where and why [parse] gave up. [line] and [column] are 1-based, null when unknown. */
+  data class ParseError(val line: Int?, val column: Int?, val message: String)
+
+  /**
+   * Explains why [text] does not parse, or null when it does. Comments and trailing commas are
+   * blanked rather than removed here, so the parser's offset still points into the text the user is
+   * looking at.
+   */
+  fun parseError(text: String): ParseError? {
+    val sameLength = stripTrailingCommas(stripComments(text, keepLength = true), keepLength = true)
+    val failure = runCatching {
+      Json.parseToJsonElement(sameLength)
+    }
+        .fold(
+            onSuccess = {
+              if (it is JsonObject) return null
+              return ParseError(null, null, "the policy must be a JSON object")
+            },
+            onFailure = { it },
+        )
+    val summary = failure.message.orEmpty().lineSequence().firstOrNull().orEmpty()
+    val offset =
+        Regex("offset (\\d+)")
+            .find(summary)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+            ?.coerceIn(
+                0,
+                text.length,
+            )
+    val message = summary.replace(Regex("^.*?offset \\d+:?\\s*"), "").ifBlank { summary }
+    if (offset == null) return ParseError(null, null, message)
+    val before = text.substring(0, offset)
+    return ParseError(
+        line = before.count { it == '\n' } + 1,
+        column = offset - (before.lastIndexOf('\n') + 1) + 1,
+        message = message,
+    )
+  }
 
   /** Sections to render: known ones first, then anything else the policy defines. */
   fun sections(policy: JsonObject): List<String> {
@@ -113,8 +156,11 @@ object PolicyDoc {
 
   // ------------------------------------------------------------ huJSON input
 
-  /** Drops `//` and `/* */` comments, leaving strings (and escapes) untouched. */
-  internal fun stripComments(text: String): String {
+  /**
+   * Drops `//` and `/* */` comments, leaving strings (and escapes) untouched. With [keepLength] the
+   * comment is overwritten with spaces instead (newlines stay), so offsets keep their meaning.
+   */
+  internal fun stripComments(text: String, keepLength: Boolean = false): String {
     val out = StringBuilder(text.length)
     var i = 0
     var inString = false
@@ -138,12 +184,18 @@ object PolicyDoc {
           i++
         }
         c == '/' && i + 1 < text.length && text[i + 1] == '/' -> {
+          val start = i
           while (i < text.length && text[i] != '\n') i++
+          if (keepLength) repeat(i - start) { out.append(' ') }
         }
         c == '/' && i + 1 < text.length && text[i + 1] == '*' -> {
+          val start = i
           i += 2
           while (i + 1 < text.length && !(text[i] == '*' && text[i + 1] == '/')) i++
           i = if (i + 1 < text.length) i + 2 else text.length
+          if (keepLength) {
+            for (j in start until i) out.append(if (text[j] == '\n') '\n' else ' ')
+          }
         }
         else -> {
           out.append(c)
@@ -154,8 +206,8 @@ object PolicyDoc {
     return out.toString()
   }
 
-  /** Drops a comma that only precedes `}` or `]`. */
-  internal fun stripTrailingCommas(text: String): String {
+  /** Drops (or, with [keepLength], blanks) a comma that only precedes `}` or `]`. */
+  internal fun stripTrailingCommas(text: String, keepLength: Boolean = false): String {
     val out = StringBuilder(text.length)
     var i = 0
     var inString = false
@@ -182,6 +234,7 @@ object PolicyDoc {
         var j = i + 1
         while (j < text.length && text[j].isWhitespace()) j++
         if (j < text.length && (text[j] == '}' || text[j] == ']')) {
+          if (keepLength) out.append(' ')
           i++
           continue
         }

@@ -448,7 +448,7 @@
     <string name="admin_routes">Route approval</string>
     <string name="admin_no_routes">This device advertises no routes.</string>
     <string name="admin_node_tags">Tags</string>
-    <string name="admin_tags_hint">Comma separated; the tag: prefix is added automatically.</string>
+    <string name="admin_tags_hint">The tag: prefix is added automatically.</string>
     <string name="admin_save">Save</string>
     <string name="admin_policy">Access policy</string>
     <string name="admin_refresh">Refresh</string>

@@ -7,5 +7,8 @@
     <string name="policy_save_diff_legend">+ added · − removed · … unchanged lines omitted. Replacements appear as removals and additions; this is not an access-rule analysis. A final blank line represents a trailing newline; ␍ marks a carriage return.</string>
     <string name="policy_save_diff_broad">Large change: the entire changed region is shown, including any unchanged lines inside it. Counts describe the displayed replacement, not a minimal diff.</string>
     <string name="policy_save_preflight_notice">Before saving, the app checks whether the server policy still matches your original. Headscale does not support atomic conditional updates; another edit can still occur between this check and the save.</string>
+    <string name="policy_edit_invalid_at">Near line %1$d, column %2$d: %3$s</string>
+    <string name="policy_edit_restore_title">Replace the draft with the previous version?</string>
+    <string name="policy_edit_restore_message">Your unsaved edits are replaced by the last policy this app saw on the server.</string>
     <string name="policy_save_conflict">Save stopped: the server policy changed since this draft began. Your draft is kept. Copy your draft from the raw editor, then cancel or discard to load the latest policy and reapply your changes.</string>
 </resources>

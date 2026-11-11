@@ -25,4 +25,11 @@
     <string name="admin_key_masked">Key #%1$s · ••••••••</string>
     <string name="admin_reveal_secret">Reveal key</string>
     <string name="admin_hide_secret">Hide key</string>
+    <string name="admin_dismiss">Dismiss</string>
+    <string name="admin_copied">Copied</string>
+    <string name="admin_key_created_title">Pre-authorisation key created</string>
+    <string name="admin_key_created_hint">Copy it now. Newer Headscale versions show the full key only once, at creation.</string>
+    <string name="admin_add_tag">Add tag</string>
+    <string name="admin_existing_tags">Existing tags</string>
+    <string name="admin_tap_to_copy">Tap to copy</string>
 </resources>

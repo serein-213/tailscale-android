@@ -6,21 +6,37 @@ package com.tailscale.ipn.ui.view
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminApi
@@ -42,7 +59,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-internal fun ConsoleError(message: String, onRetry: (() -> Unit)? = null) {
+internal fun ConsoleError(
+    message: String,
+    onRetry: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
+) {
   var expanded by remember(message) { mutableStateOf(false) }
   val clipboard = LocalClipboardManager.current
   Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -71,38 +92,36 @@ internal fun ConsoleError(message: String, onRetry: (() -> Unit)? = null) {
       onRetry?.let { retry ->
         TextButton(onClick = retry) { Text(stringResource(R.string.admin_retry)) }
       }
+      onDismiss?.let { dismiss ->
+        TextButton(onClick = dismiss) { Text(stringResource(R.string.admin_dismiss)) }
+      }
     }
   }
 }
 
+/**
+ * Only failures earn a line above the list. A line that came and went with every refresh pushed the
+ * list up and down; when things last loaded lives in the overflow menu instead.
+ */
 @Composable
 internal fun ConsoleLoadInfo(label: String, state: ConsoleLoadState, onRetry: () -> Unit) {
-  val timestamp =
-      state.refreshedAt?.let {
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneId.systemDefault())
-            .format(it)
-      }
-  Text(
-      "$label · " +
-          when {
-            state.loading -> stringResource(R.string.admin_loading_data)
-            timestamp != null -> stringResource(R.string.admin_refreshed_at, timestamp)
-            else -> stringResource(R.string.admin_not_loaded)
-          },
-      style = MaterialTheme.typography.labelSmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-  )
-  if (state.loading && timestamp != null) {
-    Text(
-        stringResource(R.string.admin_refreshed_at, timestamp),
-        style = MaterialTheme.typography.labelSmall,
-        modifier = Modifier.padding(horizontal = 16.dp),
-    )
-  }
-  state.error?.let { ConsoleError(it, if (state.loading) null else onRetry) }
+  state.error?.let { ConsoleError("$label · $it", if (state.loading) null else onRetry) }
 }
+
+/** "Refreshing…", the time of the last successful load, or "not loaded": one menu line. */
+@Composable
+internal fun consoleLoadSummary(state: ConsoleLoadState): String =
+    when {
+      state.loading -> stringResource(R.string.admin_loading_data)
+      state.refreshedAt != null ->
+          stringResource(
+              R.string.admin_refreshed_at,
+              DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+                  .withZone(ZoneId.systemDefault())
+                  .format(state.refreshedAt),
+          )
+      else -> stringResource(R.string.admin_not_loaded)
+    }
 
 /** A bounded, searchable list, shared by filters and the key creation dialog. */
 @Composable
@@ -207,6 +226,7 @@ internal fun ConsoleDeviceFilters(
 ) {
   var tagPicker by remember { mutableStateOf(false) }
   var tagQuery by remember { mutableStateOf("") }
+  var sortMenu by remember { mutableStateOf(false) }
   Column {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
@@ -235,27 +255,31 @@ internal fun ConsoleDeviceFilters(
           onClick = { tagPicker = true },
           label = { Text(tag ?: stringResource(R.string.admin_all_tags)) },
       )
-    }
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-      DeviceSort.entries.forEach { candidate ->
+      // Sorting is set once and left alone: a menu, not a second row of chips above the list.
+      Box {
         FilterChip(
-            selected = candidate == sort,
-            onClick = { onSort(candidate) },
-            label = {
-              Text(
-                  stringResource(
-                      when (candidate) {
-                        DeviceSort.ONLINE_FIRST -> R.string.admin_sort_online
-                        DeviceSort.NAME -> R.string.admin_sort_name
-                        DeviceSort.LAST_SEEN -> R.string.admin_sort_seen
-                      }
-                  )
+            selected = sort != DeviceSort.ONLINE_FIRST,
+            onClick = { sortMenu = true },
+            label = { Text(stringResource(sortLabel(sort))) },
+            trailingIcon = {
+              Icon(
+                  Icons.Default.ArrowDropDown,
+                  contentDescription = null,
+                  modifier = Modifier.size(FilterChipDefaults.IconSize),
               )
             },
         )
+        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+          DeviceSort.entries.forEach { candidate ->
+            DropdownMenuItem(
+                text = { Text(stringResource(sortLabel(candidate))) },
+                onClick = {
+                  sortMenu = false
+                  onSort(candidate)
+                },
+            )
+          }
+        }
       }
     }
   }
@@ -300,3 +324,109 @@ internal fun ConsoleDeviceFilters(
           },
       )
 }
+
+private fun sortLabel(sort: DeviceSort): Int =
+    when (sort) {
+      DeviceSort.ONLINE_FIRST -> R.string.admin_sort_online
+      DeviceSort.NAME -> R.string.admin_sort_name
+      DeviceSort.LAST_SEEN -> R.string.admin_sort_seen
+    }
+
+/**
+ * Tags as chips instead of a comma-separated line: what is set, what could be added from the tags
+ * the tailnet already uses, and a field for a new one. The "tag:" prefix is filled in.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ConsoleTagsDialog(
+    initial: List<String>,
+    known: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+  val original = remember(initial) { cleanTags(initial) }
+  var tags by remember { mutableStateOf(original) }
+  var typed by remember { mutableStateOf("") }
+  // Whatever is still in the field counts, so "type, then Save" does not drop the last tag.
+  val pending = cleanTags(tags + typed.split(",", " "))
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.admin_node_tags)) },
+      text = {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Text(
+              stringResource(R.string.admin_tags_hint),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          if (tags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              tags.forEach { tag ->
+                InputChip(
+                    selected = true,
+                    onClick = { tags = tags - tag },
+                    label = { Text(tag) },
+                    trailingIcon = {
+                      Icon(
+                          Icons.Default.Close,
+                          contentDescription = stringResource(R.string.admin_clear),
+                          modifier = Modifier.size(InputChipDefaults.IconSize),
+                      )
+                    },
+                )
+              }
+            }
+          }
+          OutlinedTextField(
+              value = typed,
+              onValueChange = { typed = it },
+              singleLine = true,
+              label = { Text(stringResource(R.string.admin_add_tag)) },
+              keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+              keyboardActions =
+                  KeyboardActions(
+                      onDone = {
+                        tags = pending
+                        typed = ""
+                      }
+                  ),
+              modifier = Modifier.fillMaxWidth(),
+          )
+          val suggestions = known.filter {
+            it !in pending && it.contains(typed.trim(), ignoreCase = true)
+          }
+          if (suggestions.isNotEmpty()) {
+            Text(
+                stringResource(R.string.admin_existing_tags),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              suggestions.forEach { tag ->
+                SuggestionChip(
+                    onClick = {
+                      tags = cleanTags(tags + tag)
+                      typed = ""
+                    },
+                    label = { Text(tag) },
+                )
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(enabled = pending != original, onClick = { onConfirm(pending) }) {
+          Text(stringResource(R.string.admin_save))
+        }
+      },
+      dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+  )
+}
+
+/** Prefixed, de-duplicated, and without the bare "tag:" a stray separator would produce. */
+private fun cleanTags(tags: List<String>): List<String> =
+    AdminApi.normalizeTags(tags).filter { it != "tag:" }
