@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="admin_error_expand">显示详情</string>
+    <string name="admin_error_collapse">收起</string>
+    <string name="admin_retry">重试</string>
+    <string name="admin_loading_data">正在刷新…</string>
+    <string name="admin_refreshed_at">上次刷新：%1$s</string>
+    <string name="admin_not_loaded">尚未加载</string>
+    <string name="admin_search_users">搜索用户</string>
+    <string name="admin_filter_selected">已选择</string>
+    <string name="admin_all_tags">所有标签</string>
+    <string name="admin_search_tags">搜索标签</string>
+    <string name="admin_sort_online">在线优先</string>
+    <string name="admin_sort_name">名称 A–Z</string>
+    <string name="admin_sort_seen">最近在线时间：由近到远</string>
+    <string name="admin_bulk_failure_details">失败设备：%1$d</string>
+    <string name="admin_retry_failed">仅重试失败项</string>
+    <string name="admin_dismiss_results">关闭结果</string>
+    <string name="admin_route_device_count">路由（%1$d 台设备）</string>
+    <string name="admin_routes_pending_only">仅显示有待批准路由的设备</string>
+    <string name="admin_route_count_semantics">按设备计数。通告：当前提供的路由；已批准：获准的路由，含已不再通告的路由；待批准：已通告但未批准的路由。获批不代表路由正在生效。</string>
+    <string name="admin_route_row_counts">通告 %1$d · 已批准 %2$d · 待批准 %3$d</string>
+    <string name="admin_route_applying">正在应用路由…</string>
+    <string name="admin_key_identifier">密钥 #%1$s</string>
+    <string name="admin_key_masked">密钥 #%1$s · ••••••••</string>
+    <string name="admin_reveal_secret">显示密钥</string>
+    <string name="admin_hide_secret">隐藏密钥</string>
+</resources>

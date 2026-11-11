@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,10 +47,10 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -59,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,13 +81,20 @@ import com.tailscale.ipn.App
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.admin.AdminActionGate
 import com.tailscale.ipn.ui.admin.AdminApi
+import com.tailscale.ipn.ui.admin.BulkNodeFailure
+import com.tailscale.ipn.ui.admin.ConsoleLoadState
+import com.tailscale.ipn.ui.admin.DevicePresence
+import com.tailscale.ipn.ui.admin.DeviceSort
 import com.tailscale.ipn.ui.admin.KeyStatus
 import com.tailscale.ipn.ui.admin.NodeList
 import com.tailscale.ipn.ui.admin.PolicyBackup
 import com.tailscale.ipn.ui.admin.PolicyDoc
 import com.tailscale.ipn.ui.admin.PolicyEditorState
+import com.tailscale.ipn.ui.admin.PolicySaveGuard
+import com.tailscale.ipn.ui.admin.filterDevices
 import com.tailscale.ipn.ui.admin.filterPreAuthKeys
 import com.tailscale.ipn.ui.admin.isExpired
+import com.tailscale.ipn.ui.admin.pendingRoutes
 import com.tailscale.ipn.ui.admin.status
 import com.tailscale.ipn.ui.theme.link
 import com.tailscale.ipn.ui.util.Lists
@@ -142,6 +151,17 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
   var keyStatus by remember { mutableStateOf(KeyStatus.ALL) }
   var keyUserId by remember { mutableStateOf<String?>(null) }
   var nodeQuery by remember { mutableStateOf("") }
+  var nodePresence by remember { mutableStateOf(DevicePresence.ALL) }
+  var nodeUserId by remember { mutableStateOf<String?>(null) }
+  var nodeTag by remember { mutableStateOf<String?>(null) }
+  var nodeSort by remember { mutableStateOf(DeviceSort.ONLINE_FIRST) }
+  var pendingRoutesOnly by remember { mutableStateOf(false) }
+  var pendingRouteId by remember { mutableStateOf<String?>(null) }
+  val loadStates = remember { mutableStateMapOf<Int, ConsoleLoadState>() }
+  val queuedReloads = remember { mutableSetOf<Int>() }
+  val nodeListState = rememberLazyListState()
+  var bulkFailures by remember { mutableStateOf(emptyList<BulkNodeFailure>()) }
+  var failedBulkAction by remember { mutableStateOf<BulkAction?>(null) }
   var expandedNode by remember { mutableStateOf<String?>(null) }
   var showConnection by remember { mutableStateOf(!AdminApi.isConfigured()) }
   var policy by remember { mutableStateOf<AdminApi.HsPolicy?>(null) }
@@ -163,28 +183,42 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
 
   val snackbarHostState = remember { SnackbarHostState() }
 
-  fun reload() {
-    if (busy) return
-    busy = true
-    scope.launch {
-      try {
-        val n = withContext(Dispatchers.IO) { api.nodes() }
-        nodes.clear()
-        nodes.addAll(NodeList.sort(n))
-        val k = withContext(Dispatchers.IO) { api.preAuthKeys() }
-        keys.clear()
-        keys.addAll(k)
-        val u = withContext(Dispatchers.IO) { api.users() }
-        users.clear()
-        users.addAll(u)
-        configured = true
-        status = null
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: Exception) {
-        status = e.message ?: e.javaClass.simpleName
-      } finally {
-        busy = false
+  fun reload(vararg datasets: Int) {
+    datasets.distinct().forEach { dataset ->
+      val previous = loadStates[dataset] ?: ConsoleLoadState()
+      if (previous.loading) {
+        queuedReloads += dataset
+        return@forEach
+      }
+      loadStates[dataset] = previous.copy(loading = true, error = null)
+      scope.launch {
+        try {
+          when (dataset) {
+            0 -> {
+              val result = withContext(Dispatchers.IO) { api.nodes() }
+              nodes.clear()
+              nodes.addAll(NodeList.sort(result))
+            }
+            1 -> {
+              val result = withContext(Dispatchers.IO) { api.users() }
+              users.clear()
+              users.addAll(result)
+            }
+            2 -> {
+              val result = withContext(Dispatchers.IO) { api.preAuthKeys() }
+              keys.clear()
+              keys.addAll(result)
+            }
+          }
+          loadStates[dataset] = ConsoleLoadState(refreshedAt = Instant.now())
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          loadStates[dataset] = previous.copy(error = e.message ?: e.javaClass.simpleName)
+        } finally {
+          loadStates[dataset] = loadStates.getValue(dataset).copy(loading = false)
+          if (queuedReloads.remove(dataset)) reload(dataset)
+        }
       }
     }
   }
@@ -193,6 +227,8 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
   fun loadPolicy() {
     if (policyLoading) return
     policyLoading = true
+    val previous = loadStates[POLICY_TAB] ?: ConsoleLoadState()
+    loadStates[POLICY_TAB] = previous.copy(loading = true, error = null)
     scope.launch {
       runCatching { withContext(Dispatchers.IO) { api.policy() } }
           .onSuccess {
@@ -200,13 +236,15 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
             // The last policy known to be on the server is the way back from a bad edit.
             editorState.receive(it.policy)
             PolicyBackup.remember(api.serverId, it.policy)
+            loadStates[POLICY_TAB] = ConsoleLoadState(refreshedAt = Instant.now())
           }
           .onFailure {
             if (it is CancellationException) throw it
-            status = it.message ?: it.javaClass.simpleName
+            loadStates[POLICY_TAB] = previous.copy(error = it.message ?: it.javaClass.simpleName)
             TSLog.w(TAG, "policy load failed: ${it.message}")
           }
       policyLoading = false
+      loadStates[POLICY_TAB] = loadStates.getValue(POLICY_TAB).copy(loading = false)
     }
   }
 
@@ -216,32 +254,50 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
    */
   fun savePolicy(text: String) {
     if (busy || policyLoading || !configured || PolicyDoc.parse(text) == null) return
+    val expected = editorState.baseline
     busy = true
     scope.launch {
       status = null
       try {
-        val applied = withContext(Dispatchers.IO) { api.updatePolicy(text) }
+        val applied =
+            withContext(Dispatchers.IO) {
+              PolicySaveGuard.save(expected, text, api::policy, api::updatePolicy)
+            }
         policy = applied
         // The applied policy is the new way back.
         editorState.saved(applied.policy)
         PolicyBackup.remember(api.serverId, applied.policy)
+        loadStates[POLICY_TAB] = ConsoleLoadState(refreshedAt = Instant.now())
         snackbarHostState.showSnackbar(App.get().getString(R.string.policy_saved))
       } catch (e: CancellationException) {
         throw e
+      } catch (e: PolicySaveGuard.Conflict) {
+        policy = e.latest
+        editorState.receive(e.latest.policy)
+        PolicyBackup.remember(api.serverId, e.latest.policy)
+        val message = App.get().getString(R.string.policy_save_conflict)
+        loadStates[POLICY_TAB] = ConsoleLoadState(refreshedAt = Instant.now(), error = message)
+        snackbarHostState.showSnackbar(message, withDismissAction = true)
       } catch (e: Exception) {
         val message = e.message ?: e.javaClass.simpleName
         TSLog.e(TAG, "policy save failed", e)
         status = message
         snackbarHostState.showSnackbar(message, withDismissAction = true)
+      } finally {
+        busy = false
       }
-      busy = false
     }
   }
 
   fun refresh() {
-    if (busy || policyLoading) return
-    reload()
-    if (selectedTab == POLICY_TAB) loadPolicy()
+    if (busy) return
+    when (selectedTab) {
+      0,
+      3 -> reload(0)
+      1 -> reload(1, 0, 2)
+      2 -> reload(2, 1)
+      else -> loadPolicy()
+    }
   }
 
   /**
@@ -251,12 +307,14 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
   suspend fun runAction(block: suspend () -> Unit): Boolean {
     if (busy) return false
     busy = true
+    status = null
     return try {
       actionGate.run { withContext(Dispatchers.IO) { block() } }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
       val message = e.message ?: e.javaClass.simpleName
+      status = message
       TSLog.e(TAG, "admin action failed", e)
       snackbarHostState.showSnackbar(message, withDismissAction = true)
       false
@@ -266,9 +324,15 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
   }
 
   /**
-   * Devices the selection currently points at. Resolved from the live list, never held as objects.
+   * Resolve selection from the live list, preserving failed IDs even if a refresh no longer lists
+   * them.
    */
-  val selectedNodes = nodes.filter { it.id in selected }
+  val selectedNodes = buildList {
+    addAll(nodes.filter { it.id in selected })
+    bulkFailures
+        .filter { failure -> failure.nodeId in selected && nodes.none { it.id == failure.nodeId } }
+        .forEach { failure -> add(AdminApi.HsNode(id = failure.nodeId, givenName = failure.name)) }
+  }
 
   /**
    * Expires or deletes every selected device, best effort: one failure does not stop the rest, and
@@ -281,9 +345,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
     if (targets.isEmpty()) return
     busy = true
     scope.launch {
-      status = null
-      var failed = 0
-      var firstError: String? = null
+      val failures = mutableListOf<BulkNodeFailure>()
       for (node in targets) {
         try {
           withContext(Dispatchers.IO) {
@@ -295,8 +357,8 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
-          failed++
-          if (firstError == null) firstError = e.message ?: e.javaClass.simpleName
+          failures +=
+              BulkNodeFailure(node.id, node.displayName, e.message ?: e.javaClass.simpleName)
           TSLog.w(
               TAG,
               "bulk ${action.name.lowercase()} failed for ${node.displayName}: ${e.message}",
@@ -304,12 +366,14 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         }
       }
       busy = false
-      selecting = false
-      selected = emptySet()
-      reload()
+      bulkFailures = failures
+      failedBulkAction = action.takeIf { failures.isNotEmpty() }
+      selecting = failures.isNotEmpty()
+      selected = failures.map { it.nodeId }.toSet()
+      reload(0)
+      val failed = failures.size
       val done = targets.size - failed
       val app = App.get()
-      if (failed > 0) status = firstError
       snackbarHostState.showSnackbar(
           when {
             failed > 0 -> app.getString(R.string.admin_bulk_partly_failed, done, failed)
@@ -326,7 +390,15 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
     it.availableRoutes.isNotEmpty() || it.approvedRoutes.isNotEmpty()
   }
 
-  LaunchedEffect(configured) { if (configured && nodes.isEmpty() && !busy) reload() }
+  LaunchedEffect(configured) { if (configured) reload(0, 1, 2) }
+  LaunchedEffect(selectedTab, expandedNode) {
+    if (selectedTab == 0 && expandedNode != null) {
+      val index =
+          filterDevices(nodes, nodeQuery, nodePresence, nodeUserId, nodeTag, nodeSort)
+              .indexOfFirst { it.id == expandedNode }
+      if (index >= 0) nodeListState.scrollToItem(index)
+    }
+  }
 
   Scaffold(
       topBar = {
@@ -373,15 +445,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
       },
   ) { innerPadding ->
     Column(Modifier.fillMaxSize().padding(innerPadding)) {
-      status?.let {
-        Text(
-            it,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            maxLines = 3,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-      }
+      status?.let { ConsoleError(it) }
 
       if (!configured) {
         Text(
@@ -402,7 +466,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
       } else {
         // One section at a time: a 26-device tailnet plus users, keys and policy in a single
         // scroll made everything hard to find.
-        TabRow(selectedTabIndex = selectedTab) {
+        ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
           Tab(
               selected = selectedTab == 0,
               onClick = { selectedTab = 0 },
@@ -422,7 +486,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
               selected = selectedTab == 3,
               onClick = { selectedTab = 3 },
               text = {
-                Text("${stringResource(R.string.admin_routes_short)} (${routableNodes.size})")
+                Text(stringResource(R.string.admin_route_device_count, routableNodes.size))
               },
           )
           Tab(
@@ -432,12 +496,71 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
           )
         }
 
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        PullToRefreshBox(isRefreshing = busy, onRefresh = { refresh() }) {
+        val datasets =
+            when (selectedTab) {
+              1 -> listOf(1, 0, 2)
+              2 -> listOf(2, 1)
+              POLICY_TAB -> listOf(POLICY_TAB)
+              else -> listOf(0)
+            }
+        datasets.forEach { dataset ->
+          ConsoleLoadInfo(
+              label =
+                  stringResource(
+                      when (dataset) {
+                        0 -> R.string.admin_nodes
+                        1 -> R.string.admin_users
+                        2 -> R.string.admin_keys_short
+                        else -> R.string.admin_policy_tab
+                      }
+                  ),
+              state = loadStates[dataset] ?: ConsoleLoadState(),
+              onRetry = { if (dataset == POLICY_TAB) loadPolicy() else reload(dataset) },
+          )
+        }
+        val refreshing = datasets.any { loadStates[it]?.loading == true }
+        if (busy || refreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
+        PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refresh() }) {
           when (selectedTab) {
             0 -> {
-              val visibleNodes = NodeList.search(nodes, nodeQuery)
+              val visibleNodes =
+                  filterDevices(
+                      nodes,
+                      nodeQuery,
+                      nodePresence,
+                      nodeUserId,
+                      nodeTag,
+                      nodeSort,
+                  )
               Column(Modifier.fillMaxSize()) {
+                if (bulkFailures.isNotEmpty()) {
+                  Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    Text(
+                        stringResource(R.string.admin_bulk_failure_details, bulkFailures.size),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    ConsoleError(
+                        bulkFailures.joinToString("\n") {
+                          "${it.name} (${it.nodeId}): ${it.reason}"
+                        }
+                    )
+                    Row {
+                      TextButton(
+                          enabled = !busy,
+                          onClick = {
+                            selected = bulkFailures.map { it.nodeId }.toSet()
+                            selecting = true
+                            pendingBulk = failedBulkAction
+                          },
+                      ) {
+                        Text(stringResource(R.string.admin_retry_failed))
+                      }
+                      TextButton(enabled = !busy, onClick = { bulkFailures = emptyList() }) {
+                        Text(stringResource(R.string.admin_dismiss_results))
+                      }
+                    }
+                  }
+                }
                 if (selecting) {
                   SelectionBar(
                       count = selected.size,
@@ -488,14 +611,28 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                     }
                   }
                 }
+                ConsoleDeviceFilters(
+                    users = users,
+                    tags = nodes.flatMap { it.tags + it.validTags }.distinct().sorted(),
+                    presence = nodePresence,
+                    onPresence = { nodePresence = it },
+                    userId = nodeUserId,
+                    onUser = { nodeUserId = it },
+                    tag = nodeTag,
+                    onTag = { nodeTag = it },
+                    sort = nodeSort,
+                    onSort = { nodeSort = it },
+                )
                 LazyColumn(
                     Modifier.fillMaxSize(),
+                    state = nodeListState,
                     contentPadding = PaddingValues(bottom = 96.dp),
                 ) {
                   if (visibleNodes.isEmpty()) {
                     item("noNodes") {
                       EmptyHint(
-                          if (nodeQuery.isBlank()) R.string.admin_no_nodes
+                          if (loadStates[0]?.refreshedAt == null) R.string.admin_not_loaded
+                          else if (nodes.isEmpty()) R.string.admin_no_nodes
                           else R.string.admin_no_matches
                       )
                     }
@@ -503,7 +640,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                   items(visibleNodes, key = { it.id }) { node ->
                     NodeRow(
                         node = node,
-                        busy = busy,
+                        busy = busy || loadStates[0]?.loading == true,
                         selecting = selecting,
                         selected = node.id in selected,
                         onToggleSelected = {
@@ -536,8 +673,8 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                     UserRow(
                         user = user,
                         expanded = expandedUser == user.id,
-                        devices = nodes.filter { it.user?.name == user.name },
-                        keys = keys.filter { it.user?.name == user.name },
+                        devices = nodes.filter { it.user?.id == user.id },
+                        keys = keys.filter { it.user?.id == user.id },
                         tags = tagsOwnedBy(policy, user),
                         onToggleExpanded = {
                           val opening = expandedUser != user.id
@@ -547,10 +684,28 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                         },
                         onRename = { pendingRenameUser = user },
                         onDelete = { pendingDeleteUser = user },
+                        busy =
+                            busy ||
+                                loadStates[1]?.loading == true ||
+                                loadStates[2]?.loading == true,
+                        onExpireKey = { pendingExpireKey = it },
+                        onDevice = { node ->
+                          nodeQuery = ""
+                          nodePresence = DevicePresence.ALL
+                          nodeUserId = null
+                          nodeTag = null
+                          selectedTab = 0
+                          expandedNode = node.id
+                        },
                     )
                   }
                   if (users.isEmpty()) {
-                    item("noUsers") { EmptyHint(R.string.admin_no_users) }
+                    item("noUsers") {
+                      EmptyHint(
+                          if (loadStates[1]?.refreshedAt == null) R.string.admin_not_loaded
+                          else R.string.admin_no_users
+                      )
+                    }
                   }
                 }
             2 -> {
@@ -569,12 +724,19 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                     contentPadding = PaddingValues(bottom = 96.dp),
                 ) {
                   items(visibleKeys, key = { it.id }) { key ->
-                    PreAuthKeyRow(key, onExpire = { pendingExpireKey = key })
+                    PreAuthKeyRow(
+                        key,
+                        busy = busy || loadStates[2]?.loading == true,
+                        onExpire = { pendingExpireKey = key },
+                    )
                   }
                   if (visibleKeys.isEmpty()) {
                     item("noKeys") {
                       Text(
-                          stringResource(R.string.admin_no_keys),
+                          stringResource(
+                              if (loadStates[2]?.refreshedAt == null) R.string.admin_not_loaded
+                              else R.string.admin_no_keys
+                          ),
                           style = MaterialTheme.typography.bodyMedium,
                           color = MaterialTheme.colorScheme.onSurfaceVariant,
                           modifier = Modifier.padding(16.dp),
@@ -585,30 +747,61 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
               }
             }
             3 ->
-                LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 96.dp),
-                ) {
-                  if (routableNodes.isEmpty()) {
-                    item("noRoutes") {
+                Column(Modifier.fillMaxSize()) {
+                  FilterChip(
+                      selected = pendingRoutesOnly,
+                      onClick = { pendingRoutesOnly = !pendingRoutesOnly },
+                      label = { Text(stringResource(R.string.admin_routes_pending_only)) },
+                      modifier = Modifier.padding(horizontal = 12.dp),
+                  )
+                  val visibleRoutes = routableNodes.filter {
+                    !pendingRoutesOnly || it.pendingRoutes().isNotEmpty()
+                  }
+                  LazyColumn(
+                      Modifier.fillMaxSize(),
+                      contentPadding = PaddingValues(bottom = 96.dp),
+                  ) {
+                    item("routeCounts") {
                       Text(
-                          stringResource(R.string.admin_no_route_nodes),
-                          style = MaterialTheme.typography.bodyMedium,
-                          color = MaterialTheme.colorScheme.onSurfaceVariant,
-                          modifier = Modifier.padding(16.dp),
+                          stringResource(R.string.admin_route_count_semantics),
+                          style = MaterialTheme.typography.labelSmall,
+                          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                       )
                     }
-                  }
-                  items(routableNodes, key = { it.id }) { node ->
-                    RouteNodeBlock(
-                        node = node,
-                        busy = busy,
-                        onApply = { routes ->
-                          scope.launch {
-                            if (runAction { api.approveRoutes(node.id, routes) }) reload()
-                          }
-                        },
-                    )
+                    if (visibleRoutes.isEmpty()) {
+                      item("noRoutes") {
+                        Text(
+                            stringResource(
+                                when {
+                                  loadStates[0]?.refreshedAt == null -> R.string.admin_not_loaded
+                                  routableNodes.isEmpty() -> R.string.admin_no_route_nodes
+                                  else -> R.string.admin_no_matches
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                      }
+                    }
+                    items(visibleRoutes, key = { it.id }) { node ->
+                      RouteNodeBlock(
+                          node = node,
+                          busy = busy || loadStates[0]?.loading == true,
+                          pending = pendingRouteId == node.id,
+                          onApply = { routes ->
+                            if (!busy)
+                                scope.launch {
+                                  pendingRouteId = node.id
+                                  try {
+                                    if (runAction { api.approveRoutes(node.id, routes) }) reload(0)
+                                  } finally {
+                                    pendingRouteId = null
+                                  }
+                                }
+                          },
+                      )
+                    }
                   }
                 }
             else -> {
@@ -711,7 +904,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { pendingExpire = null },
         onConfirm = {
           pendingExpire = null
-          scope.launch { if (runAction { api.expireNode(node.id) }) reload() }
+          scope.launch { if (runAction { api.expireNode(node.id) }) reload(0) }
         },
     )
   }
@@ -724,7 +917,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { pendingDelete = null },
         onConfirm = {
           pendingDelete = null
-          scope.launch { if (runAction { api.deleteNode(node.id) }) reload() }
+          scope.launch { if (runAction { api.deleteNode(node.id) }) reload(0) }
         },
     )
   }
@@ -737,7 +930,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { pendingRename = null },
         onConfirm = { newName ->
           pendingRename = null
-          scope.launch { if (runAction { api.renameNode(node.id, newName) }) reload() }
+          scope.launch { if (runAction { api.renameNode(node.id, newName) }) reload(0) }
         },
     )
   }
@@ -752,7 +945,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onConfirm = { value ->
           pendingTags = null
           val tags = value.split(",", " ").map { it.trim() }.filter { it.isNotEmpty() }
-          scope.launch { if (runAction { api.setNodeTags(node.id, tags) }) reload() }
+          scope.launch { if (runAction { api.setNodeTags(node.id, tags) }) reload(0) }
         },
     )
   }
@@ -765,7 +958,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { showCreateUser = false },
         onConfirm = { name ->
           showCreateUser = false
-          scope.launch { if (runAction { api.createUser(name) }) reload() }
+          scope.launch { if (runAction { api.createUser(name) }) reload(1) }
         },
     )
   }
@@ -778,7 +971,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { pendingRenameUser = null },
         onConfirm = { name ->
           pendingRenameUser = null
-          scope.launch { if (runAction { api.renameUser(user.id, name) }) reload() }
+          scope.launch { if (runAction { api.renameUser(user.id, name) }) reload(1, 0, 2) }
         },
     )
   }
@@ -791,7 +984,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
         onDismiss = { pendingDeleteUser = null },
         onConfirm = {
           pendingDeleteUser = null
-          scope.launch { if (runAction { api.deleteUser(user.id) }) reload() }
+          scope.launch { if (runAction { api.deleteUser(user.id) }) reload(1, 0, 2) }
         },
     )
   }
@@ -799,12 +992,12 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
   pendingExpireKey?.let { key ->
     ConfirmDialog(
         title = stringResource(R.string.admin_action_expire),
-        message = key.key,
+        message = stringResource(R.string.admin_key_identifier, key.id),
         confirmLabel = stringResource(R.string.admin_action_expire),
         onDismiss = { pendingExpireKey = null },
         onConfirm = {
           pendingExpireKey = null
-          scope.launch { if (runAction { api.expirePreAuthKey(key.id) }) reload() }
+          scope.launch { if (runAction { api.expirePreAuthKey(key.id) }) reload(2) }
         },
     )
   }
@@ -828,7 +1021,7 @@ private fun AdminConsoleContent(backToSettings: BackNavigation, onConnectionChan
                   )
                 }
             )
-                reload()
+                reload(2)
           }
         },
     )
@@ -987,34 +1180,7 @@ private fun KeyFiltersRow(
         )
       }
     }
-    if (users.size > 1) {
-      Row(
-          Modifier.fillMaxWidth()
-              .horizontalScroll(rememberScrollState())
-              .padding(horizontal = 12.dp, vertical = 2.dp)
-      ) {
-        FilterChip(
-            selected = userId == null,
-            onClick = { onUser(null) },
-            label = {
-              Text(
-                  "${stringResource(R.string.admin_all_users)} (${filterPreAuthKeys(keys, status, null, now).size})"
-              )
-            },
-            modifier = Modifier.padding(end = 6.dp),
-        )
-        users.forEach { user ->
-          FilterChip(
-              selected = userId == user.id,
-              onClick = { onUser(user.id) },
-              label = {
-                Text("${user.name} (${filterPreAuthKeys(keys, status, user.id, now).size})")
-              },
-              modifier = Modifier.padding(end = 6.dp),
-          )
-        }
-      }
-    }
+    Row(Modifier.padding(horizontal = 12.dp)) { ConsoleUserFilter(users, userId, onUser) }
     Spacer(Modifier.size(4.dp))
   }
 }
@@ -1039,14 +1205,22 @@ private fun EmptyHint(@StringRes textRes: Int) {
 }
 
 @Composable
-private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
+private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, busy: Boolean, onExpire: () -> Unit) {
   val clipboard = LocalClipboardManager.current
   var menuOpen by remember { mutableStateOf(false) }
+  var revealed by remember(key.key) { mutableStateOf(false) }
   ListItem(
-      headlineContent = { Text(key.key, style = MaterialTheme.typography.bodySmall, maxLines = 2) },
+      headlineContent = {
+        Text(
+            if (revealed) key.key else stringResource(R.string.admin_key_masked, key.id),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = if (revealed) Int.MAX_VALUE else 2,
+        )
+      },
       supportingContent = {
         Column {
           val parts = mutableListOf<String>()
+          parts += stringResource(keyStatusLabel(key.status(Instant.now())))
           key.user?.name?.let { parts += it }
           if (key.reusable) parts += stringResource(R.string.admin_reusable)
           if (key.ephemeral) parts += stringResource(R.string.admin_ephemeral)
@@ -1085,14 +1259,23 @@ private fun PreAuthKeyRow(key: AdminApi.HsPreAuthKey, onExpire: () -> Unit) {
             )
           }
           DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            CompactMenuItem(
+                stringResource(
+                    if (revealed) R.string.admin_hide_secret else R.string.admin_reveal_secret
+                )
+            ) {
+              menuOpen = false
+              revealed = !revealed
+            }
             CompactMenuItem(stringResource(R.string.admin_copy)) {
               menuOpen = false
               clipboard.setText(AnnotatedString(key.key))
             }
-            CompactMenuItem(stringResource(R.string.admin_action_expire), destructive = true) {
-              menuOpen = false
-              onExpire()
-            }
+            if (!busy)
+                CompactMenuItem(stringResource(R.string.admin_action_expire), destructive = true) {
+                  menuOpen = false
+                  onExpire()
+                }
           }
         }
       },
@@ -1109,6 +1292,9 @@ private fun UserRow(
     onToggleExpanded: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    busy: Boolean,
+    onDevice: (AdminApi.HsNode) -> Unit,
+    onExpireKey: (AdminApi.HsPreAuthKey) -> Unit,
 ) {
   var menuOpen by remember { mutableStateOf(false) }
   ListItem(
@@ -1137,7 +1323,7 @@ private fun UserRow(
             )
           }
           Box {
-            IconButton(onClick = { menuOpen = true }) {
+            IconButton(onClick = { menuOpen = true }, enabled = !busy) {
               Icon(
                   Icons.Default.MoreVert,
                   contentDescription = stringResource(R.string.admin_user_actions),
@@ -1163,16 +1349,17 @@ private fun UserRow(
   if (devices.isNotEmpty()) {
     Lists.MutedHeader(text = stringResource(R.string.admin_nodes))
     devices.forEach { node ->
-      DetailLine(text = node.displayName, trailing = node.ipAddresses.firstOrNull())
+      ListItem(
+          headlineContent = { Text(node.displayName, style = MaterialTheme.typography.bodySmall) },
+          supportingContent = { Text(node.ipAddresses.firstOrNull().orEmpty()) },
+          modifier = Modifier.clickable { onDevice(node) },
+      )
     }
   }
   if (keys.isNotEmpty()) {
     Lists.MutedHeader(text = stringResource(R.string.admin_preauth_keys))
-    keys.forEach { key ->
-      DetailLine(
-          text = key.key,
-          trailing = key.expiration?.take(10)?.takeIf { !isZeroTime(it) },
-      )
+    keys.forEach { authKey ->
+      key(authKey.id) { PreAuthKeyRow(authKey, busy = busy, onExpire = { onExpireKey(authKey) }) }
     }
   }
   Lists.MutedHeader(text = stringResource(R.string.admin_node_tags))
@@ -1239,14 +1426,17 @@ private fun CreatePreAuthKeyDialog(
             )
             // Transparent overlay: tapping the (read-only) field opens the picker.
             Box(Modifier.matchParentSize().clickable { pickerOpen = true })
-            DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-              users.forEach { candidate ->
-                CompactMenuItem(candidate.name) {
-                  user = candidate
-                  pickerOpen = false
-                }
-              }
-            }
+            if (pickerOpen)
+                ConsoleUserPicker(
+                    users = users,
+                    selectedId = user?.id,
+                    allowAll = false,
+                    onDismiss = { pickerOpen = false },
+                    onSelect = { id ->
+                      user = users.firstOrNull { it.id == id }
+                      pickerOpen = false
+                    },
+                )
           }
           Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = reusable, onCheckedChange = { reusable = it })
@@ -1329,6 +1519,7 @@ private fun routeTypeLabel(route: String): Int =
 private fun RouteNodeBlock(
     node: AdminApi.HsNode,
     busy: Boolean,
+    pending: Boolean,
     onApply: (List<String>) -> Unit,
 ) {
   val routes = remember(node) { (node.availableRoutes + node.approvedRoutes).distinct().sorted() }
@@ -1360,11 +1551,25 @@ private fun RouteNodeBlock(
               )
             }
       }
-      Text(
-          stringResource(R.string.admin_routes_approved, node.approvedRoutes.size, routes.size),
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
+      Column(Modifier.weight(1f).padding(start = 8.dp)) {
+        Text(
+            stringResource(
+                R.string.admin_route_row_counts,
+                node.availableRoutes.distinct().size,
+                node.approvedRoutes.distinct().size,
+                node.pendingRoutes().size,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (pending) {
+          Text(
+              stringResource(R.string.admin_route_applying),
+              style = MaterialTheme.typography.labelSmall,
+          )
+          LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+      }
       if (isExitNode) {
         Box(
             Modifier.padding(start = 8.dp)

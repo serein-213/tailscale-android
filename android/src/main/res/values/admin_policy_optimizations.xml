@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="policy_structured_edit_failed_title">Edit not applied</string>
+    <string name="policy_structured_edit_failed_message">The structured editor could not safely change this entry. Your policy draft is unchanged. Try the raw editor to make the change without losing comments or other fields.</string>
+    <string name="policy_structured_edit_raw_action">Open raw editor</string>
+    <string name="policy_save_diff_summary">Text comparison: +%1$d / −%2$d lines</string>
+    <string name="policy_save_diff_legend">+ added · − removed · … unchanged lines omitted. Replacements appear as removals and additions; this is not an access-rule analysis. A final blank line represents a trailing newline; ␍ marks a carriage return.</string>
+    <string name="policy_save_diff_broad">Large change: the entire changed region is shown, including any unchanged lines inside it. Counts describe the displayed replacement, not a minimal diff.</string>
+    <string name="policy_save_preflight_notice">Before saving, the app checks whether the server policy still matches your original. Headscale does not support atomic conditional updates; another edit can still occur between this check and the save.</string>
+    <string name="policy_save_conflict">Save stopped: the server policy changed since this draft began. Your draft is kept. Copy your draft from the raw editor, then cancel or discard to load the latest policy and reapply your changes.</string>
+</resources>

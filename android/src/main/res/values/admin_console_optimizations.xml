@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="admin_error_expand">Show details</string>
+    <string name="admin_error_collapse">Collapse</string>
+    <string name="admin_retry">Retry</string>
+    <string name="admin_loading_data">Refreshing…</string>
+    <string name="admin_refreshed_at">Last refreshed: %1$s</string>
+    <string name="admin_not_loaded">Not loaded</string>
+    <string name="admin_search_users">Search users</string>
+    <string name="admin_filter_selected">Selected</string>
+    <string name="admin_all_tags">All tags</string>
+    <string name="admin_search_tags">Search tags</string>
+    <string name="admin_sort_online">Online first</string>
+    <string name="admin_sort_name">Name A–Z</string>
+    <string name="admin_sort_seen">Last seen: newest first</string>
+    <string name="admin_bulk_failure_details">Failed devices: %1$d</string>
+    <string name="admin_retry_failed">Retry failed only</string>
+    <string name="admin_dismiss_results">Dismiss results</string>
+    <string name="admin_route_device_count">Routes (%1$d devices)</string>
+    <string name="admin_routes_pending_only">Devices with pending routes</string>
+    <string name="admin_route_count_semantics">Counts are per device. Advertised: currently offered routes; approved: permitted routes, including routes no longer advertised; pending: advertised but not approved. Approval does not guarantee that a route is active.</string>
+    <string name="admin_route_row_counts">Advertised %1$d · Approved %2$d · Pending %3$d</string>
+    <string name="admin_route_applying">Applying routes…</string>
+    <string name="admin_key_identifier">Key #%1$s</string>
+    <string name="admin_key_masked">Key #%1$s · ••••••••</string>
+    <string name="admin_reveal_secret">Reveal key</string>
+    <string name="admin_hide_secret">Hide key</string>
+</resources>

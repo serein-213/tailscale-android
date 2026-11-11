@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -96,6 +97,7 @@ fun AdminPolicyTab(
   var draft by editorState::draft
   val doc = remember(draft) { PolicyDoc.parse(draft) }
   var confirmSave by remember { mutableStateOf(false) }
+  var editFailed by remember { mutableStateOf(false) }
   var backup by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
   var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
@@ -127,12 +129,7 @@ fun AdminPolicyTab(
         )
       }
 
-  /** The engine refuses paths it cannot splice; say so instead of quietly doing nothing. */
-  fun onEditFailed() {
-    android.util.Log.w("AdminPolicyTab", "structured edit did not apply")
-  }
-
-  val dirty = draft != policyText
+  val dirty = editorState.dirty
   val structured =
       remember(draft, users, tags) {
         StructuredEditor(
@@ -160,10 +157,8 @@ fun AdminPolicyTab(
                             draft,
                             listOf(PolicyEdit.Step.Key(edit.section)),
                             edit.name,
-                            when (edit.value) {
-                              JsonFragment.EMPTY_ARRAY -> "[]"
-                              JsonFragment.EMPTY_STRING -> "\"\""
-                            },
+                            if (edit.section == "hosts") PolicyEdit.quote(edit.value.orEmpty())
+                            else "[]",
                         )
                     is StructuredEdit.AddRule ->
                         PolicyEdit.appendTo(
@@ -172,7 +167,13 @@ fun AdminPolicyTab(
                             ruleJson(edit.section, edit.action, edit.src, edit.dst),
                         )
                   }
-              if (next != null) draft = next else onEditFailed()
+              if (next != null) {
+                draft = next
+                true
+              } else {
+                editFailed = true
+                false
+              }
             },
         )
       }
@@ -219,15 +220,12 @@ fun AdminPolicyTab(
         }
         TextButton(
             enabled = !saving,
-            onClick = {
-              editing = false
-              draft = policyText
-            },
+            onClick = { editorState.discardToSource() },
         ) {
           Text(stringResource(R.string.policy_edit_cancel))
         }
         TextButton(
-            enabled = draftValid && draft != policyText && !saving,
+            enabled = draftValid && dirty && !saving,
             onClick = { confirmSave = true },
         ) {
           Text(stringResource(R.string.policy_edit_save))
@@ -294,17 +292,9 @@ fun AdminPolicyTab(
                 StructuredEdit.AddEntry(
                     section = section,
                     name = name,
-                    value = JsonFragment.EMPTY_ARRAY,
+                    value = value,
                 )
             )
-            if (section == "hosts" && value.isNotEmpty()) {
-              draft =
-                  PolicyEdit.replace(
-                      draft,
-                      listOf(PolicyEdit.Step.Key(section), PolicyEdit.Step.Key(name)),
-                      PolicyEdit.quote(value),
-                  ) ?: draft
-            }
           },
       )
     }
@@ -461,14 +451,37 @@ fun AdminPolicyTab(
   }
 
   if (confirmSave) {
-    ConfirmDialog(
-        title = stringResource(R.string.policy_save_title),
-        message = stringResource(R.string.policy_save_warning),
-        confirmLabel = stringResource(R.string.policy_save_confirm),
+    PolicySavePreview(
+        before = editorState.baseline,
+        after = draft,
+        saving = saving,
         onDismiss = { confirmSave = false },
         onConfirm = {
           confirmSave = false
           onSave(draft)
+        },
+    )
+  }
+
+  if (editFailed) {
+    AlertDialog(
+        onDismissRequest = { editFailed = false },
+        title = { Text(stringResource(R.string.policy_structured_edit_failed_title)) },
+        text = { Text(stringResource(R.string.policy_structured_edit_failed_message)) },
+        confirmButton = {
+          TextButton(
+              onClick = {
+                editFailed = false
+                entryTarget = null
+                addingTo = null
+                editing = true
+              }
+          ) {
+            Text(stringResource(R.string.policy_structured_edit_raw_action))
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { editFailed = false }) { Text(stringResource(R.string.cancel)) }
         },
     )
   }
@@ -481,7 +494,7 @@ fun AdminPolicyTab(
         onDismiss = { confirmDiscard = false },
         onConfirm = {
           confirmDiscard = false
-          draft = policyText
+          editorState.discardToSource()
         },
     )
   }

@@ -88,11 +88,63 @@ class PolicyRegressionTest {
     val restored = PolicyEditorState.Saver.restore(saved)!!
     assertEquals("unsaved", restored.draft)
     assertEquals("server changed", restored.source)
+    assertEquals("old", restored.baseline)
     assertTrue(restored.editing)
     assertTrue(restored.dirty)
     restored.saved("normalized by server")
     assertFalse(restored.dirty)
     assertFalse(restored.editing)
+    assertEquals("normalized by server", restored.baseline)
+  }
+
+  @Test
+  fun cleanRefreshAndExplicitDiscardResetTheSaveBaseline() {
+    val state = PolicyEditorState("old")
+    state.receive("fresh")
+    assertEquals("fresh", state.baseline)
+    state.draft = "unsaved"
+    state.receive("remote")
+    assertEquals("fresh", state.baseline)
+    assertEquals("unsaved", state.draft)
+    state.discardToSource()
+    assertEquals("remote", state.baseline)
+    assertEquals("remote", state.draft)
+    assertFalse(state.dirty)
+  }
+
+  @Test
+  fun conflictThenCancelAndReenterUsesLatestBaseline() {
+    val state = PolicyEditorState("original")
+    state.editing = true
+    state.draft = "first draft"
+    val latest = AdminApi.HsPolicy("remote")
+    try {
+      PolicySaveGuard.save(
+          state.baseline,
+          state.draft,
+          { latest },
+          { throw AssertionError("A stale draft must never be written") },
+      )
+      fail("Expected a conflict")
+    } catch (e: PolicySaveGuard.Conflict) {
+      state.receive(e.latest.policy)
+    }
+    assertEquals("first draft", state.draft)
+    assertEquals("original", state.baseline)
+    state.discardToSource()
+    assertFalse(state.editing)
+    assertFalse(state.dirty)
+    state.editing = true
+    state.draft = "reapplied draft"
+    var server = latest
+    PolicySaveGuard.save(
+        state.baseline,
+        state.draft,
+        { server },
+        { text -> AdminApi.HsPolicy(text).also { server = it } },
+    )
+    assertEquals("reapplied draft", server.policy)
+    assertEquals("remote", state.baseline)
   }
 
   @Test

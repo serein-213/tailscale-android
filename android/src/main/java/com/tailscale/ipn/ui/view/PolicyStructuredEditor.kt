@@ -51,7 +51,7 @@ sealed interface StructuredEdit {
   data class RemoveEntry(val path: List<PolicyEdit.Step>) : StructuredEdit
 
   /** A new named entry (a host, a group, a tag owner) is added to [section]. */
-  data class AddEntry(val section: String, val name: String, val value: JsonFragment) :
+  data class AddEntry(val section: String, val name: String, val value: String? = null) :
       StructuredEdit
 
   /** A new rule is appended to [section]. */
@@ -63,20 +63,11 @@ sealed interface StructuredEdit {
   ) : StructuredEdit
 }
 
-/** How a new entry's value should be rendered when it is spliced in. */
-enum class JsonFragment {
-  /** An empty array: members are added afterwards. */
-  EMPTY_ARRAY,
-
-  /** An empty string: the address is filled in afterwards. */
-  EMPTY_STRING,
-}
-
 /** What the structured view may offer, and who to tell when the user picks something. */
 data class StructuredEditor(
     val users: List<String>,
     val tags: List<String>,
-    val onEdit: (StructuredEdit) -> Unit,
+    val onEdit: (StructuredEdit) -> Boolean,
 )
 
 /** What the entry sheet is looking at: a rule, a list, or a single value. */
@@ -180,8 +171,7 @@ fun PolicyEntrySheet(
             FilterChip(
                 selected = action == choice,
                 onClick = {
-                  action = choice
-                  editor.onEdit(StructuredEdit.SetAction(target.path, choice))
+                  if (editor.onEdit(StructuredEdit.SetAction(target.path, choice))) action = choice
                 },
                 label = { Text(choice) },
             )
@@ -196,13 +186,13 @@ fun PolicyEntrySheet(
             suggestions = suggestions,
             onAdd = { picked ->
               if (picked !in src) {
-                src = src + picked
-                editor.onEdit(StructuredEdit.SetList(target.srcPath, src))
+                val next = src + picked
+                if (editor.onEdit(StructuredEdit.SetList(target.srcPath, next))) src = next
               }
             },
             onRemove = { item ->
-              src = src - item
-              editor.onEdit(StructuredEdit.SetList(target.srcPath, src))
+              val next = src - item
+              if (editor.onEdit(StructuredEdit.SetList(target.srcPath, next))) src = next
             },
         )
       }
@@ -214,13 +204,25 @@ fun PolicyEntrySheet(
             suggestions = dstChoices,
             onAdd = { picked ->
               if (picked !in dst) {
-                dst = dst + picked
-                editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), dst))
+                val next = dst + picked
+                if (
+                    editor.onEdit(
+                        StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), next)
+                    )
+                ) {
+                  dst = next
+                }
               }
             },
             onRemove = { item ->
-              dst = dst - item
-              editor.onEdit(StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), dst))
+              val next = dst - item
+              if (
+                  editor.onEdit(
+                      StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("dst"), next)
+                  )
+              ) {
+                dst = next
+              }
             },
         )
       }
@@ -232,17 +234,25 @@ fun PolicyEntrySheet(
             suggestions = sshUserSuggestions(editor),
             onAdd = { picked ->
               if (picked !in users) {
-                users = users + picked
-                editor.onEdit(
-                    StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users)
-                )
+                val next = users + picked
+                if (
+                    editor.onEdit(
+                        StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), next)
+                    )
+                ) {
+                  users = next
+                }
               }
             },
             onRemove = { item ->
-              users = users - item
-              editor.onEdit(
-                  StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), users)
-              )
+              val next = users - item
+              if (
+                  editor.onEdit(
+                      StructuredEdit.SetList(target.path + PolicyEdit.Step.Key("users"), next)
+                  )
+              ) {
+                users = next
+              }
             },
         )
       }
@@ -253,13 +263,11 @@ fun PolicyEntrySheet(
             values = listOf(value).filter { it.isNotEmpty() },
             suggestions = suggestions,
             onAdd = { picked ->
-              value = picked
-              editor.onEdit(StructuredEdit.SetValue(target.path, picked))
+              if (editor.onEdit(StructuredEdit.SetValue(target.path, picked))) value = picked
             },
             onRemove = {
               // Clearing a value is not a thing: the entry itself goes.
-              onDismiss()
-              editor.onEdit(StructuredEdit.RemoveEntry(target.path))
+              if (editor.onEdit(StructuredEdit.RemoveEntry(target.path))) onDismiss()
             },
         )
       }
@@ -282,8 +290,7 @@ fun PolicyEntrySheet(
           TextButton(
               onClick = {
                 confirmRemove = false
-                editor.onEdit(StructuredEdit.RemoveEntry(target.path))
-                onDismiss()
+                if (editor.onEdit(StructuredEdit.RemoveEntry(target.path))) onDismiss()
               }
           ) {
             Text(
@@ -363,8 +370,8 @@ private fun ValueRow(value: String, onRemove: () -> Unit) {
 }
 
 /**
- * Name (and for hosts an address) for a new entry. The value is written as an empty container so
- * the entry appears immediately and can be filled in with the same sheet every other entry uses.
+ * Name (and for hosts an address) for a new entry. The name and initial value are spliced together,
+ * so a failed edit cannot leave behind a partially created host.
  */
 @Composable
 fun AddEntryDialog(
