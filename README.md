@@ -4,6 +4,8 @@
 
 **本项目不是 Tailscale 官方发行版。** 官方商店及 [Tailscale Packages](https://pkgs.tailscale.com/stable/#android) 提供的是官方客户端，不包含本 fork 的定制功能。
 
+当前发布 **1.104.6.mod.1**：同步官方 Android 1.104.6，升级 Tailscale 核心至 1.104.6 及对应 WireGuard 依赖，保留本 fork 的 Headscale 管理与界面定制。
+
 ## 这个 fork 有什么不同
 
 ### Headscale 应用内管理
